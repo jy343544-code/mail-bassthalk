@@ -14,3 +14,5 @@
 - Roles live in public.user_roles (supervisor/manager/employee); every privileged server function re-checks role via has_role. Why: prevent privilege escalation.
 - Sheet files are never sent to the browser raw: the private `sheets` bucket is read only by server functions that parse to rows after an RLS check. Why: no-download requirement.
 - UI is Arabic RTL.
+- All important actions are written to public.activity_log (server functions via admin client; a fixed allowlist of client-side actions via RLS). Why: supervisor-only full audit trail.
+- Supervisor password recovery checks the SUPERVISOR_RECOVERY_KEY secret server-side; other roles file a password_reset_requests row the supervisor resolves. Why: accounts have no real email.
