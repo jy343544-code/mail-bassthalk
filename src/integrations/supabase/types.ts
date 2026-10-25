@@ -14,16 +14,151 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      message_recipients: {
+        Row: {
+          message_id: string
+          read_at: string | null
+          recipient_id: string
+        }
+        Insert: {
+          message_id: string
+          read_at?: string | null
+          recipient_id: string
+        }
+        Update: {
+          message_id?: string
+          read_at?: string | null
+          recipient_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_recipients_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string
+          created_at: string
+          file_name: string | null
+          file_path: string | null
+          id: string
+          sender_id: string
+          sheet_url: string | null
+          subject: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          sender_id: string
+          sheet_url?: string | null
+          subject: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          sender_id?: string
+          sheet_url?: string | null
+          subject?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          must_change_password: boolean
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id: string
+          must_change_password?: boolean
+          username: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          must_change_password?: boolean
+          username?: string
+        }
+        Relationships: []
+      }
+      screenshot_events: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          message_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          message_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          message_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_recipient: {
+        Args: { _message_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "supervisor" | "manager" | "employee"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +285,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["supervisor", "manager", "employee"],
+    },
   },
 } as const
