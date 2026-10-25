@@ -58,7 +58,7 @@ function Compose() {
       });
       toast.success("تم الإرسال");
       qc.invalidateQueries({ queryKey: ["messages"] });
-      navigate({ to: "/messages/$id", params: { id: res.id } });
+      navigate({ to: "/inbox/$id", params: { id: res.id }, search: { f: "sent" } });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -67,8 +67,8 @@ function Compose() {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-3xl space-y-6 rounded-2xl border bg-card p-6 shadow-soft md:p-8">
-      <h1 className="text-3xl text-primary">رسالة جديدة</h1>
+    <div className="p-4 md:p-6"><form onSubmit={submit} className="mx-auto max-w-3xl space-y-6 rounded-md border bg-card p-6 shadow-soft md:p-8">
+      <h1 className="text-2xl">رسالة جديدة</h1>
 
       <div className="space-y-2">
         <Label>إلى</Label>
@@ -131,6 +131,6 @@ function Compose() {
       <Button type="submit" size="lg" className="gap-2" disabled={busy}>
         <Send className="size-4" /> {busy ? "جاري الإرسال..." : "إرسال"}
       </Button>
-    </form>
+    </form></div>
   );
 }

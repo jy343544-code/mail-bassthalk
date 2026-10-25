@@ -44,11 +44,11 @@ function ChangePassword() {
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl border bg-card p-8 shadow-soft">
+    <div className="mx-auto mt-6 max-w-md rounded-md border bg-card p-8 shadow-soft">
       <span className="grid size-12 place-items-center rounded-xl bg-accent text-accent-foreground">
         <KeyRound className="size-5" />
       </span>
-      <h1 className="mt-4 text-2xl text-primary">تغيير كلمة المرور</h1>
+      <h1 className="mt-4 text-2xl">تغيير كلمة المرور</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {me.mustChange
           ? "إنت داخل بكلمة مرور مؤقتة. لازم تغيرها قبل ما تكمل."
