@@ -8,3 +8,9 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+# Rules
+- Accounts sign in by username mapped to a synthetic email (src/lib/identity.ts); public signup is disabled and only server functions create users. Why: supervisor-provisioned accounts only.
+- Roles live in public.user_roles (supervisor/manager/employee); every privileged server function re-checks role via has_role. Why: prevent privilege escalation.
+- Sheet files are never sent to the browser raw: the private `sheets` bucket is read only by server functions that parse to rows after an RLS check. Why: no-download requirement.
+- UI is Arabic RTL.
