@@ -11,7 +11,7 @@ type Folder = "inbox" | "sent" | "all";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({ meta: [{ title: "الرسائل | بريد بستطهالك" }] }),
-  validateSearch: (s: Record<string, unknown>): { f?: Folder } => ({
+  validateSearch: (s: Record<string, unknown>): { f?: Folder | undefined } => ({
     f: s["f"] === "sent" || s["f"] === "all" ? (s["f"] as Folder) : undefined,
   }),
   component: InboxLayout,

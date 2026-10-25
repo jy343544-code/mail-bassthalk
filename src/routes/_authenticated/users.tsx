@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { KeyRound, Trash2, UserPlus, Wand2 } from "lucide-react";
 import { createAccount, deleteAccount, resetTempPassword } from "@/lib/mail.functions";
 import { fetchPeople } from "@/lib/queries";
+import { supabase } from "@/integrations/supabase/client";
 import { roleLabel } from "@/lib/identity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,29 @@ function UsersPage() {
   const { me } = Route.useRouteContext();
   const qc = useQueryClient();
   const people = useQuery({ queryKey: ["people"], queryFn: fetchPeople });
+  const requests = useQuery({
+    queryKey: ["reset-requests"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("password_reset_requests")
+        .select("*")
+        .is("resolved_at", null)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+    refetchInterval: 30000,
+  });
+  const resetFor = async (userId: string) => {
+    const pw = genPassword();
+    try {
+      await resetTempPassword({ data: { userId, password: pw } });
+      toast.success(`كلمة المرور المؤقتة الجديدة: ${pw}`, { duration: 30000 });
+      qc.invalidateQueries({ queryKey: ["people"] });
+      qc.invalidateQueries({ queryKey: ["reset-requests"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState(genPassword());
@@ -54,10 +78,27 @@ function UsersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <h1 className="text-3xl text-primary">الحسابات</h1>
+    <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+      <h1 className="text-2xl">الحسابات</h1>
 
-      <form onSubmit={submit} className="grid gap-4 rounded-2xl border bg-card p-6 shadow-soft md:grid-cols-2">
+      {!!requests.data?.length && (
+        <div className="rounded-md border border-primary bg-accent p-4">
+          <h2 className="mb-2 font-semibold text-accent-foreground">طلبات استعادة كلمة المرور ({requests.data.length})</h2>
+          {requests.data.map((r) => {
+            const p = people.data?.find((x) => x.id === r.user_id);
+            return (
+              <div key={r.id} className="flex items-center justify-between gap-2 border-t border-border py-2 first:border-0">
+                <span className="text-sm">
+                  {p?.full_name ?? "—"} <span className="text-muted-foreground">· {new Date(r.created_at).toLocaleString("ar-EG")}</span>
+                </span>
+                <Button size="sm" onClick={() => resetFor(r.user_id)}>إنشاء كلمة مؤقتة</Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <form onSubmit={submit} className="grid gap-4 rounded-md border bg-card p-6 shadow-soft md:grid-cols-2">
         <h2 className="flex items-center gap-2 text-xl md:col-span-2">
           <UserPlus className="size-5 text-primary" /> حساب جديد
         </h2>
@@ -95,7 +136,7 @@ function UsersPage() {
         </Button>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border bg-card">
+      <div className="overflow-hidden rounded-md border bg-card">
         {people.data?.map((p) => (
           <div key={p.id} className="flex flex-wrap items-center gap-3 border-b p-4 last:border-0">
             <div className="min-w-0 flex-1">
@@ -112,16 +153,7 @@ function UsersPage() {
                   variant="outline"
                   size="sm"
                   className="gap-1"
-                  onClick={async () => {
-                    const pw = genPassword();
-                    try {
-                      await resetTempPassword({ data: { userId: p.id, password: pw } });
-                      toast.success(`كلمة المرور المؤقتة الجديدة: ${pw}`, { duration: 20000 });
-                      qc.invalidateQueries({ queryKey: ["people"] });
-                    } catch (e) {
-                      toast.error((e as Error).message);
-                    }
-                  }}
+                  onClick={() => resetFor(p.id)}
                 >
                   <KeyRound className="size-4" /> مؤقتة جديدة
                 </Button>
