@@ -17,6 +17,23 @@ async function admin() {
 
 type Ctx = { supabase: any; userId: string };
 
+async function logActivity(entry: {
+  actor_id: string | null;
+  action: string;
+  target_user_id?: string | null;
+  message_id?: string | null;
+  details?: Record<string, unknown>;
+}) {
+  const db = await admin();
+  await db.from("activity_log").insert({ details: {}, ...entry } as never);
+}
+
+async function namesOf(ids: string[]) {
+  const db = await admin();
+  const { data } = await db.from("profiles").select("id, full_name").in("id", ids);
+  return ids.map((id) => data?.find((p) => p.id === id)?.full_name ?? "—");
+}
+
 async function hasRole(ctx: Ctx, role: "supervisor" | "manager" | "employee") {
   const { data } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: role });
   return data === true;
@@ -84,7 +101,8 @@ export const setupSupervisor = createServerFn({ method: "POST" })
       .select("id", { count: "exact", head: true })
       .eq("role", "supervisor");
     if ((count ?? 0) > 0) throw new Error("تم إعداد السوبر فايزر بالفعل");
-    await createUserWithRole({ ...data, role: "supervisor", mustChange: false });
+    const id = await createUserWithRole({ ...data, role: "supervisor", mustChange: false });
+    await logActivity({ actor_id: id, action: "account_created", target_user_id: id, details: { name: data.fullName, role: "supervisor" } });
     return { ok: true };
   });
 
@@ -102,7 +120,8 @@ export const createAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireSupervisor(context as Ctx);
-    await createUserWithRole({ ...data, mustChange: true });
+    const id = await createUserWithRole({ ...data, mustChange: true });
+    await logActivity({ actor_id: context.userId, action: "account_created", target_user_id: id, details: { name: data.fullName, role: data.role } });
     return { ok: true };
   });
 
@@ -115,6 +134,9 @@ export const resetTempPassword = createServerFn({ method: "POST" })
     const { error } = await db.auth.admin.updateUserById(data.userId, { password: data.password });
     if (error) throw new Error(error.message);
     await db.from("profiles").update({ must_change_password: true }).eq("id", data.userId);
+    await db.from("password_reset_requests").update({ resolved_at: new Date().toISOString() }).eq("user_id", data.userId).is("resolved_at", null);
+    const [name] = await namesOf([data.userId]);
+    await logActivity({ actor_id: context.userId, action: "password_reset", target_user_id: data.userId, details: { name } });
     return { ok: true };
   });
 
@@ -125,7 +147,9 @@ export const deleteAccount = createServerFn({ method: "POST" })
     await requireSupervisor(context as Ctx);
     if (data.userId === context.userId) throw new Error("لا يمكنك حذف حسابك");
     const db = await admin();
+    const [name] = await namesOf([data.userId]);
     const { error } = await db.auth.admin.deleteUser(data.userId);
+    if (!error) await logActivity({ actor_id: context.userId, action: "account_deleted", target_user_id: data.userId, details: { name } });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -135,6 +159,7 @@ export const markPasswordChanged = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const db = await admin();
     await db.from("profiles").update({ must_change_password: false }).eq("id", context.userId);
+    await logActivity({ actor_id: context.userId, action: "password_changed" });
     return { ok: true };
   });
 
@@ -192,6 +217,13 @@ export const sendMessage = createServerFn({ method: "POST" })
       .from("message_recipients")
       .insert(data.recipientIds.map((r) => ({ message_id: msg.id, recipient_id: r })));
     if (rec.error) throw new Error(rec.error.message);
+    const recipients = await namesOf(data.recipientIds);
+    await logActivity({
+      actor_id: context.userId,
+      action: "message_sent",
+      message_id: msg.id,
+      details: { subject: data.subject, recipients, file: data.file?.name ?? (sheetId ? "Google Sheet" : null) },
+    });
     return { id: msg.id };
   });
 
@@ -201,10 +233,19 @@ export const deleteMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireStaff(context as Ctx);
     const db = await admin();
-    const { data: msg } = await db.from("messages").select("file_path").eq("id", data.id).maybeSingle();
+    const { data: msg } = await db
+      .from("messages")
+      .select("file_path, subject, sender_id, message_recipients(recipient_id)")
+      .eq("id", data.id)
+      .maybeSingle();
     if (msg?.file_path) await db.storage.from("sheets").remove([msg.file_path]);
     const { error } = await db.from("messages").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    if (msg) {
+      const recipients = await namesOf(msg.message_recipients.map((r) => r.recipient_id));
+      const [sender] = await namesOf([msg.sender_id]);
+      await logActivity({ actor_id: context.userId, action: "message_deleted", message_id: data.id, details: { subject: msg.subject, sender, recipients } });
+    }
     return { ok: true };
   });
 
@@ -215,11 +256,12 @@ export const getSheet = createServerFn({ method: "POST" })
     // RLS decides whether the caller may see this message at all
     const { data: msg } = await context.supabase
       .from("messages")
-      .select("file_path")
+      .select("file_path, subject")
       .eq("id", data.id)
       .maybeSingle();
     if (!msg?.file_path) throw new Error("الشيت غير متاح أو تم حذفه");
     const db = await admin();
+    await logActivity({ actor_id: context.userId, action: "sheet_opened", message_id: data.id, details: { subject: msg.subject } });
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("الشيت غير متاح أو تم حذفه");
     const XLSX = await import("xlsx");
@@ -234,4 +276,62 @@ export const getSheet = createServerFn({ method: "POST" })
           .map((r) => r.slice(0, 60).map((c) => String(c ?? ""))),
       })),
     };
+  });
+
+async function findUser(username: string) {
+  const db = await admin();
+  const { data } = await db.from("profiles").select("id, full_name").eq("username", username).maybeSingle();
+  return data;
+}
+
+// Employees/managers: sends a reset request to the supervisor. Never reveals whether the user exists.
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ username: usernameSchema }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await findUser(data.username);
+    if (!user) return { ok: true };
+    const db = await admin();
+    const { data: pending } = await db
+      .from("password_reset_requests")
+      .select("id")
+      .eq("user_id", user.id)
+      .is("resolved_at", null)
+      .maybeSingle();
+    if (!pending) {
+      await db.from("password_reset_requests").insert({ user_id: user.id });
+      await logActivity({ actor_id: user.id, action: "reset_requested", target_user_id: user.id, details: { name: user.full_name } });
+    }
+    return { ok: true };
+  });
+
+function safeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+// Supervisor: recovers with the secret recovery key stored in the project secrets.
+export const recoverSupervisor = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ username: usernameSchema, recoveryKey: z.string().min(8).max(200), password: passwordSchema }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const key = process.env["SUPERVISOR_RECOVERY_KEY"];
+    if (!key) throw new Error("مفتاح الاسترداد لم يتم إعداده بعد");
+    await new Promise((r) => setTimeout(r, 600));
+    const user = await findUser(data.username);
+    const db = await admin();
+    const isSup = user
+      ? (await db.from("user_roles").select("id").eq("user_id", user.id).eq("role", "supervisor").maybeSingle()).data
+      : null;
+    if (!user || !isSup || !safeEqual(data.recoveryKey.trim(), key)) {
+      if (user) await logActivity({ actor_id: user.id, action: "recovery_failed", target_user_id: user.id });
+      throw new Error("البيانات غير صحيحة");
+    }
+    const { error } = await db.auth.admin.updateUserById(user.id, { password: data.password });
+    if (error) throw new Error(error.message);
+    await db.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+    await logActivity({ actor_id: user.id, action: "supervisor_recovered", target_user_id: user.id });
+    return { ok: true };
   });
