@@ -228,7 +228,7 @@ export const getSheet = createServerFn({ method: "POST" })
       sheets: wb.SheetNames.map((name) => ({
         name,
         rows: (
-          XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "", raw: false }) as unknown[][]
+          XLSX.utils.sheet_to_json(wb.Sheets[name]!, { header: 1, defval: "", raw: false }) as unknown[][]
         )
           .slice(0, 3000)
           .map((r) => r.slice(0, 60).map((c) => String(c ?? ""))),

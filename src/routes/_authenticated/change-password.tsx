@@ -24,9 +24,9 @@ function ChangePassword() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (next.length < 6) return toast.error("كلمة المرور 6 أحرف على الأقل");
-    if (next !== confirm) return toast.error("كلمتا المرور غير متطابقتين");
-    if (next === current) return toast.error("اختار كلمة مرور جديدة مختلفة");
+    if (next.length < 6) { toast.error("كلمة المرور 6 أحرف على الأقل"); return; }
+    if (next !== confirm) { toast.error("كلمتا المرور غير متطابقتين"); return; }
+    if (next === current) { toast.error("اختار كلمة مرور جديدة مختلفة"); return; }
     setBusy(true);
     const { error } = await supabase.auth.updateUser({
       password: next,
@@ -34,7 +34,8 @@ function ChangePassword() {
     } as Parameters<typeof supabase.auth.updateUser>[0]);
     if (error) {
       setBusy(false);
-      return toast.error("كلمة المرور الحالية غير صحيحة");
+      toast.error("كلمة المرور الحالية غير صحيحة");
+      return;
     }
     await markPasswordChanged();
     toast.success("تم تغيير كلمة المرور");
