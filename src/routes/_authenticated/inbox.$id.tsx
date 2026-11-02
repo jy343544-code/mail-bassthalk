@@ -2,13 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { ArrowRight, FileSpreadsheet, Trash2 } from "lucide-react";
+import { ArrowRight, ExternalLink, FileSpreadsheet, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteMessage, getSheet } from "@/lib/mail.functions";
+import { deleteMessage } from "@/lib/mail.functions";
 import { fetchPeople } from "@/lib/queries";
 import { isStaff } from "@/lib/me";
 import { roleLabel } from "@/lib/identity";
-import { ProtectedSheet } from "@/components/ProtectedSheet";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -47,15 +46,6 @@ function MessagePage() {
     refetchInterval: 15000,
   });
   const people = useQuery({ queryKey: ["people"], queryFn: fetchPeople });
-  // Sheet contents are never cached: fetched fresh each open and dropped on leave.
-  const sheet = useQuery({
-    queryKey: ["sheet", id],
-    queryFn: () => getSheet({ data: { id } }),
-    enabled: !!msg.data?.file_path,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: false,
-  });
 
   useEffect(() => {
     if (!msg.data || logged.current === id) return;
@@ -150,24 +140,18 @@ function MessagePage() {
 
         {m.body && <p className="whitespace-pre-wrap leading-8">{m.body}</p>}
 
-        {(m.file_name || m.sheet_url) && (
-          <div className="inline-flex items-center gap-2 rounded-md border bg-muted px-3 py-2 text-sm">
-            <FileSpreadsheet className="size-4 text-primary" />
-            {m.file_name ?? "Google Sheet"}
-            <span className="text-xs text-muted-foreground">· عرض فقط</span>
-          </div>
-        )}
-
-        {m.file_path && sheet.isLoading && <p className="text-sm text-muted-foreground">جاري فتح الشيت...</p>}
-        {sheet.error && <p className="text-sm text-destructive">{(sheet.error as Error).message}</p>}
-        {(sheet.data || m.sheet_url) && (
-          <ProtectedSheet
-            sheets={sheet.data?.sheets}
-            embedUrl={m.sheet_url}
-            messageId={m.id}
-            userId={me.id}
-            watermark={`${me.fullName} · @${me.username}`}
-          />
+        {(m.file_path || m.sheet_url) && (
+          <a
+            href={`/sheet/${m.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-md border bg-muted px-4 py-3 text-sm hover:bg-accent"
+          >
+            <FileSpreadsheet className="size-5 text-primary" />
+            <span className="font-medium">{m.file_name ?? "Google Sheet"}</span>
+            <ExternalLink className="size-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">فتح في تبويب جديد · عرض فقط</span>
+          </a>
         )}
       </div>
     </div>
