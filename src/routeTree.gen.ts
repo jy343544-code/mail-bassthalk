@@ -19,6 +19,7 @@ import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox.index'
 import { Route as AuthenticatedInboxIdRouteImport } from './routes/_authenticated/inbox.$id'
+import { Route as AuthenticatedSheetIdRouteImport } from './routes/_authenticated/sheet.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,6 +71,11 @@ const AuthenticatedInboxIdRoute = AuthenticatedInboxIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedInboxRoute,
 } as any)
+const AuthenticatedSheetIdRoute = AuthenticatedSheetIdRouteImport.update({
+  id: '/sheet/$id',
+  path: '/sheet/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof AuthenticatedInboxRouteWithChildren
   '/users': typeof AuthenticatedUsersRoute
   '/inbox/$id': typeof AuthenticatedInboxIdRoute
+  '/sheet/$id': typeof AuthenticatedSheetIdRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
 }
 export interface FileRoutesByTo {
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/compose': typeof AuthenticatedComposeRoute
   '/users': typeof AuthenticatedUsersRoute
   '/inbox/$id': typeof AuthenticatedInboxIdRoute
+  '/sheet/$id': typeof AuthenticatedSheetIdRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
 }
 export interface FileRoutesById {
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/_authenticated/inbox': typeof AuthenticatedInboxRouteWithChildren
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/inbox/$id': typeof AuthenticatedInboxIdRoute
+  '/_authenticated/sheet/$id': typeof AuthenticatedSheetIdRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
 }
 export interface FileRouteTypes {
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/users'
     | '/inbox/$id'
+    | '/sheet/$id'
     | '/inbox/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/compose'
     | '/users'
     | '/inbox/$id'
+    | '/sheet/$id'
     | '/inbox'
   id:
     | '__root__'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inbox'
     | '/_authenticated/users'
     | '/_authenticated/inbox/$id'
+    | '/_authenticated/sheet/$id'
     | '/_authenticated/inbox/'
   fileRoutesById: FileRoutesById
 }
@@ -219,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxIdRouteImport
       parentRoute: typeof AuthenticatedInboxRoute
     }
+    '/_authenticated/sheet/$id': {
+      id: '/_authenticated/sheet/$id'
+      path: '/sheet/$id'
+      fullPath: '/sheet/$id'
+      preLoaderRoute: typeof AuthenticatedSheetIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -241,6 +260,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComposeRoute: typeof AuthenticatedComposeRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRouteWithChildren
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
+  AuthenticatedSheetIdRoute: typeof AuthenticatedSheetIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -249,6 +269,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComposeRoute: AuthenticatedComposeRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRouteWithChildren,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
+  AuthenticatedSheetIdRoute: AuthenticatedSheetIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
