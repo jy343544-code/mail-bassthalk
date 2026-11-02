@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
-import { Activity, Inbox, KeyRound, LogOut, Mail, PenSquare, Send, Users, Layers } from "lucide-react";
+import { Activity, Inbox, KeyRound, LogOut, Mail, PenSquare, Send, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadMe, isStaff } from "@/lib/me";
 import { roleLabel } from "@/lib/identity";
