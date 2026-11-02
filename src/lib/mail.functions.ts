@@ -234,6 +234,9 @@ export const deleteMessage = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireStaff(context as Ctx);
+    // Only a participant (sender/recipient, enforced by RLS) may delete the message.
+    const { data: visible } = await context.supabase.from("messages").select("id").eq("id", data.id).maybeSingle();
+    if (!visible) throw new Error("الرسالة غير متاحة");
     const db = await admin();
     const { data: msg } = await db
       .from("messages")
