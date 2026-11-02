@@ -4,25 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import { Paperclip, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMessages, fetchPeople } from "@/lib/queries";
-import { isStaff } from "@/lib/me";
 import { Input } from "@/components/ui/input";
 
-type Folder = "inbox" | "sent" | "all";
+type Folder = "inbox" | "sent";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({ meta: [{ title: "الرسائل | بريد بستطهالك" }] }),
   validateSearch: (s: Record<string, unknown>): { f?: Folder | undefined } => ({
-    f: s["f"] === "sent" || s["f"] === "all" ? (s["f"] as Folder) : undefined,
+    f: s["f"] === "sent" ? "sent" : undefined,
   }),
   component: InboxLayout,
 });
 
-const titles: Record<Folder, string> = { inbox: "الوارد", sent: "المرسل", all: "كل الرسائل" };
+const titles: Record<Folder, string> = { inbox: "الوارد", sent: "المرسل" };
 
 function InboxLayout() {
   const { me } = Route.useRouteContext();
   const { f } = Route.useSearch();
-  const folder: Folder = f && isStaff(me.role) ? f : "inbox";
+  const folder: Folder = f ?? "inbox";
   const params = useParams({ strict: false }) as { id?: string };
   const qc = useQueryClient();
   const [q, setQ] = useState("");
@@ -49,9 +48,7 @@ function InboxLayout() {
     const byFolder = all.filter((m) =>
       folder === "inbox"
         ? m.message_recipients.some((r) => r.recipient_id === me.id)
-        : folder === "sent"
-          ? m.sender_id === me.id
-          : true,
+        : m.sender_id === me.id,
     );
     const t = q.trim();
     return t ? byFolder.filter((m) => m.subject.includes(t) || m.body.includes(t)) : byFolder;

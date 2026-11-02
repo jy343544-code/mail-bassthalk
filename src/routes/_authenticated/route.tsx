@@ -53,7 +53,6 @@ function Layout() {
   const folders = [
     { f: "inbox", label: "الوارد", icon: Inbox, show: true },
     { f: "sent", label: "المرسل", icon: Send, show: staff },
-    { f: "all", label: "كل الرسائل", icon: Layers, show: staff },
   ] as const;
   const navCls =
     "flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent";

@@ -15,6 +15,13 @@
       "when": 1792896644644,
       "tag": "0001_activity_log_and_reset_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793577692439,
+      "tag": "0002_private_messages",
+      "breakpoints": true
     }
   ]
 }
