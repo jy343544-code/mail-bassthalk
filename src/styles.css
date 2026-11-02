@@ -105,6 +105,34 @@
   --font-display: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
 }
 
+.dark {
+  --background: oklch(0.17 0.012 255);
+  --foreground: oklch(0.93 0.006 250);
+  --card: oklch(0.215 0.014 255);
+  --card-foreground: oklch(0.93 0.006 250);
+  --popover: oklch(0.215 0.014 255);
+  --popover-foreground: oklch(0.93 0.006 250);
+  --primary: oklch(0.68 0.14 250);
+  --primary-foreground: oklch(0.16 0.02 255);
+  --secondary: oklch(0.27 0.016 255);
+  --secondary-foreground: oklch(0.9 0.01 250);
+  --muted: oklch(0.25 0.014 255);
+  --muted-foreground: oklch(0.68 0.012 250);
+  --accent: oklch(0.3 0.05 252);
+  --accent-foreground: oklch(0.88 0.06 250);
+  --destructive: oklch(0.62 0.19 25);
+  --border: oklch(0.3 0.014 255);
+  --input: oklch(0.34 0.014 255);
+  --ring: oklch(0.68 0.14 250);
+  --sidebar: oklch(0.195 0.013 255);
+  --sidebar-foreground: oklch(0.88 0.008 250);
+  --sidebar-accent: oklch(0.29 0.04 252);
+  --sidebar-accent-foreground: oklch(0.9 0.05 250);
+  --sidebar-border: oklch(0.3 0.014 255);
+  --topbar: oklch(0.25 0.06 255);
+  --unread: oklch(0.68 0.14 250);
+}
+
 @theme inline {
   --color-primary-glow: var(--primary-glow);
   --font-sans: var(--font-sans);

@@ -3,3 +3,5 @@
 - [x] Forgot password: supervisor via recovery key; others send request to supervisor
 - [x] Outlook-style professional layout (folders, list + reading pane)
 - [x] Stronger sheet protection
+- [ ] Notifications, dark mode, stats, supervisor account option, everyone can send
+- [ ] Message privacy: only sender + recipients can see/open; verify with different accounts

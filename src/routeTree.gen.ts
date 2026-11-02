@@ -16,6 +16,7 @@ import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedChangePasswordRouteImport } from './routes/_authenticated/change-password'
 import { Route as AuthenticatedComposeRouteImport } from './routes/_authenticated/compose'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
+import { Route as AuthenticatedStatsRouteImport } from './routes/_authenticated/stats'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox.index'
 import { Route as AuthenticatedInboxIdRouteImport } from './routes/_authenticated/inbox.$id'
@@ -56,6 +57,11 @@ const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
   path: '/inbox',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedStatsRoute = AuthenticatedStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/compose': typeof AuthenticatedComposeRoute
   '/inbox': typeof AuthenticatedInboxRouteWithChildren
+  '/stats': typeof AuthenticatedStatsRoute
   '/users': typeof AuthenticatedUsersRoute
   '/inbox/$id': typeof AuthenticatedInboxIdRoute
   '/sheet/$id': typeof AuthenticatedSheetIdRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/activity': typeof AuthenticatedActivityRoute
   '/change-password': typeof AuthenticatedChangePasswordRoute
   '/compose': typeof AuthenticatedComposeRoute
+  '/stats': typeof AuthenticatedStatsRoute
   '/users': typeof AuthenticatedUsersRoute
   '/inbox/$id': typeof AuthenticatedInboxIdRoute
   '/sheet/$id': typeof AuthenticatedSheetIdRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/_authenticated/change-password': typeof AuthenticatedChangePasswordRoute
   '/_authenticated/compose': typeof AuthenticatedComposeRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRouteWithChildren
+  '/_authenticated/stats': typeof AuthenticatedStatsRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/inbox/$id': typeof AuthenticatedInboxIdRoute
   '/_authenticated/sheet/$id': typeof AuthenticatedSheetIdRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/compose'
     | '/inbox'
+    | '/stats'
     | '/users'
     | '/inbox/$id'
     | '/sheet/$id'
@@ -134,6 +144,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/change-password'
     | '/compose'
+    | '/stats'
     | '/users'
     | '/inbox/$id'
     | '/sheet/$id'
@@ -147,6 +158,7 @@ export interface FileRouteTypes {
     | '/_authenticated/change-password'
     | '/_authenticated/compose'
     | '/_authenticated/inbox'
+    | '/_authenticated/stats'
     | '/_authenticated/users'
     | '/_authenticated/inbox/$id'
     | '/_authenticated/sheet/$id'
@@ -210,6 +222,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/stats': {
+      id: '/_authenticated/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof AuthenticatedStatsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/users': {
       id: '/_authenticated/users'
       path: '/users'
@@ -259,6 +278,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChangePasswordRoute: typeof AuthenticatedChangePasswordRoute
   AuthenticatedComposeRoute: typeof AuthenticatedComposeRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRouteWithChildren
+  AuthenticatedStatsRoute: typeof AuthenticatedStatsRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedSheetIdRoute: typeof AuthenticatedSheetIdRoute
 }
@@ -268,6 +288,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChangePasswordRoute: AuthenticatedChangePasswordRoute,
   AuthenticatedComposeRoute: AuthenticatedComposeRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRouteWithChildren,
+  AuthenticatedStatsRoute: AuthenticatedStatsRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedSheetIdRoute: AuthenticatedSheetIdRoute,
 }

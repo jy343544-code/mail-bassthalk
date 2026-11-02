@@ -57,7 +57,7 @@ function UsersPage() {
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState(genPassword());
-  const [role, setRole] = useState<"manager" | "employee">("employee");
+  const [role, setRole] = useState<"supervisor" | "manager" | "employee">("employee");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -112,13 +112,14 @@ function UsersPage() {
         </div>
         <div className="space-y-2">
           <Label>الصلاحية</Label>
-          <Select value={role} onValueChange={(v) => setRole(v as "manager" | "employee")}>
+          <Select value={role} onValueChange={(v) => setRole(v as "supervisor" | "manager" | "employee")}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="employee">موظف</SelectItem>
               <SelectItem value="manager">مدير</SelectItem>
+              <SelectItem value="supervisor">سوبر فايزر</SelectItem>
             </SelectContent>
           </Select>
         </div>

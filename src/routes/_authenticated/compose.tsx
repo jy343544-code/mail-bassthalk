@@ -1,11 +1,10 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Send, Upload } from "lucide-react";
 import { sendMessage } from "@/lib/mail.functions";
 import { fetchPeople } from "@/lib/queries";
-import { isStaff } from "@/lib/me";
 import { roleLabel } from "@/lib/identity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/_authenticated/compose")({
   head: () => ({ meta: [{ title: "رسالة جديدة | بريد بستطهالك" }] }),
-  beforeLoad: ({ context }) => {
-    if (!isStaff(context.me.role)) throw redirect({ to: "/inbox" });
-  },
   component: Compose,
 });
 

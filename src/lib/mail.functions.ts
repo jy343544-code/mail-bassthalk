@@ -114,7 +114,7 @@ export const createAccount = createServerFn({ method: "POST" })
         fullName: z.string().trim().min(2, "اكتب الاسم"),
         username: usernameSchema,
         password: passwordSchema,
-        role: z.enum(["manager", "employee"]),
+        role: z.enum(["supervisor", "manager", "employee"]),
       })
       .parse(d),
   )
@@ -186,7 +186,9 @@ export const sendMessage = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireStaff(context as Ctx);
+    const c = context as Ctx;
+    if (!(await hasRole(c, "supervisor")) && !(await hasRole(c, "manager")) && !(await hasRole(c, "employee")))
+      throw new Error("غير مسموح");
     if (!data.file && !data.sheetUrl) throw new Error("أرفق شيت إكسل أو رابط جوجل شيت");
     const db = await admin();
     let filePath: string | null = null;
@@ -232,6 +234,9 @@ export const deleteMessage = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireStaff(context as Ctx);
+    // Only a participant (sender/recipient, enforced by RLS) may delete the message.
+    const { data: visible } = await context.supabase.from("messages").select("id").eq("id", data.id).maybeSingle();
+    if (!visible) throw new Error("الرسالة غير متاحة");
     const db = await admin();
     const { data: msg } = await db
       .from("messages")
@@ -334,4 +339,46 @@ export const recoverSupervisor = createServerFn({ method: "POST" })
     await db.from("profiles").update({ must_change_password: false }).eq("id", user.id);
     await logActivity({ actor_id: user.id, action: "supervisor_recovered", target_user_id: user.id });
     return { ok: true };
+  });
+
+// Aggregate counts only — never message contents (messages stay private to sender/recipients).
+export const getStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireStaff(context as Ctx);
+    const db = await admin();
+    const since = new Date(Date.now() - 13 * 864e5);
+    since.setHours(0, 0, 0, 0);
+    const [roles, msgs, unread, recent] = await Promise.all([
+      db.from("user_roles").select("role"),
+      db.from("messages").select("id", { count: "exact", head: true }),
+      db.from("message_recipients").select("message_id", { count: "exact", head: true }).is("read_at", null),
+      db.from("messages").select("created_at, sender_id").gte("created_at", since.toISOString()),
+    ]);
+    const byRole = { supervisor: 0, manager: 0, employee: 0 } as Record<string, number>;
+    for (const r of roles.data ?? []) byRole[r.role] = (byRole[r.role] ?? 0) + 1;
+    const days: { day: string; count: number }[] = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(since.getTime() + i * 864e5);
+      days.push({ day: d.toISOString().slice(0, 10), count: 0 });
+    }
+    const senders: Record<string, number> = {};
+    for (const m of recent.data ?? []) {
+      const k = m.created_at.slice(0, 10);
+      const d = days.find((x) => x.day === k);
+      if (d) d.count++;
+      senders[m.sender_id] = (senders[m.sender_id] ?? 0) + 1;
+    }
+    const topIds = Object.entries(senders).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const names = await namesOf(topIds.map(([id]) => id));
+    const today = days[days.length - 1]?.count ?? 0;
+    return {
+      byRole,
+      totalMessages: msgs.count ?? 0,
+      unread: unread.count ?? 0,
+      today,
+      last14: (recent.data ?? []).length,
+      days,
+      topSenders: topIds.map(([, n], i) => ({ name: names[i] ?? "—", count: n })),
+    };
   });
