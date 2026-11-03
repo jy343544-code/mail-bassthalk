@@ -292,7 +292,7 @@ export const saveCallFollowupLog = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     contactId: z.string().uuid(),
     statusId: z.string().uuid(),
-    note: z.string().max(2000).default(""),
+    note: z.string().trim().min(1, "اكتب تعليقًا قبل حفظ نتيجة المكالمة").max(2000),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
