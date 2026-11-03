@@ -4,12 +4,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, CheckCircle2, Mail, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSetupStatus, recoverSupervisor, requestPasswordReset, setupSupervisor } from "@/lib/mail.functions";
+import { getSetupStatus, requestPasswordReset, setupSupervisor } from "@/lib/mail.functions";
 import { usernameToEmail } from "@/lib/identity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -156,9 +155,6 @@ function SetupForm() {
 
 function ForgotForm({ onBack }: { onBack: () => void }) {
   const [username, setUsername] = useState("");
-  const [key, setKey] = useState("");
-  const [pw, setPw] = useState("");
-  const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
