@@ -78,15 +78,15 @@ function ChangePassword() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const validLength = next.length >= 12;
+  const validLength = next.length > 0 && next.length <= 72;
   const matches = next.length > 0 && next === confirm;
   const different = next.length > 0 && next !== current;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (next.length < 12) {
-      toast.error("كلمة المرور يجب أن تكون 12 حرفًا على الأقل");
+    if (!next.length || next.length > 72) {
+      toast.error("اكتب كلمة المرور بحد أقصى 72 حرفًا");
       return;
     }
 
@@ -173,7 +173,7 @@ function ChangePassword() {
                 }
               >
                 <CheckCircle2 className="size-3.5" />
-                12 حرفًا على الأقل
+                كلمة المرور مكتوبة
               </span>
 
               <span
