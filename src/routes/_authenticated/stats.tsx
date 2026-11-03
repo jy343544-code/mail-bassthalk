@@ -210,7 +210,7 @@ function Stats() {
             {roles.map((r) => {
               const count = s.byRole[r];
               const percentage =
-                people > 0 ? (count / people) * 100 : 0;
+                people > 0 ? ((count ?? 0) / people) * 100 : 0;
 
               return (
                 <div key={r} className="mb-4 last:mb-0">

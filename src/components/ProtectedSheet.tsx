@@ -25,7 +25,7 @@ export function ProtectedSheet({
   embedUrl,
   watermark,
 }: {
-  sheets?: Sheet[];
+  sheets?: Sheet[] | undefined;
   embedUrl?: string | null;
   messageId: string;
   userId: string;

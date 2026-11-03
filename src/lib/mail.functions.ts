@@ -210,7 +210,7 @@ export const sendMessage = createServerFn({ method: "POST" })
         body: data.body,
         file_path: filePath,
         file_name: data.file?.name ?? null,
-        sheet_url: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/preview` : null,
+        sheet_url: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : null,
       })
       .select("id")
       .single();
@@ -296,6 +296,8 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     const user = await findUser(data.username);
     if (!user) return { ok: true };
     const db = await admin();
+    const { data: sup } = await db.from("user_roles").select("id").eq("user_id", user.id).eq("role", "supervisor").maybeSingle();
+    if (sup) return { ok: true };
     const { data: pending } = await db
       .from("password_reset_requests")
       .select("id")
@@ -309,37 +311,6 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-function safeEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
-
-// Supervisor: recovers with the secret recovery key stored in the project secrets.
-export const recoverSupervisor = createServerFn({ method: "POST" })
-  .inputValidator((d) =>
-    z.object({ username: usernameSchema, recoveryKey: z.string().min(8).max(200), password: passwordSchema }).parse(d),
-  )
-  .handler(async ({ data }) => {
-    const key = process.env["SUPERVISOR_RECOVERY_KEY"];
-    if (!key) throw new Error("مفتاح الاسترداد لم يتم إعداده بعد");
-    await new Promise((r) => setTimeout(r, 600));
-    const user = await findUser(data.username);
-    const db = await admin();
-    const isSup = user
-      ? (await db.from("user_roles").select("id").eq("user_id", user.id).eq("role", "supervisor").maybeSingle()).data
-      : null;
-    if (!user || !isSup || !safeEqual(data.recoveryKey.trim(), key)) {
-      if (user) await logActivity({ actor_id: user.id, action: "recovery_failed", target_user_id: user.id });
-      throw new Error("البيانات غير صحيحة");
-    }
-    const { error } = await db.auth.admin.updateUserById(user.id, { password: data.password });
-    if (error) throw new Error(error.message);
-    await db.from("profiles").update({ must_change_password: false }).eq("id", user.id);
-    await logActivity({ actor_id: user.id, action: "supervisor_recovered", target_user_id: user.id });
-    return { ok: true };
-  });
 
 // Aggregate counts only — never message contents (messages stay private to sender/recipients).
 export const getStats = createServerFn({ method: "GET" })
