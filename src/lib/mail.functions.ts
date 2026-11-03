@@ -182,11 +182,47 @@ export const clearActivityLog = createServerFn({ method: "POST" })
     return { deleted: count ?? 0 };
   });
 
-export const markPasswordChanged = createServerFn({ method: "POST" })
+export const completePasswordChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d) =>
+    z.object({
+      currentPassword: z.string().min(1).max(72),
+      newPassword: passwordSchema,
+    }).refine((value) => value.currentPassword !== value.newPassword, {
+      message: "كلمة المرور الجديدة يجب أن تختلف عن الحالية",
+      path: ["newPassword"],
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
     const db = await admin();
-    const { error } = await db.from("profiles").update({ must_change_password: false }).eq("id", context.userId);
+    const { data: profile, error: profileError } = await db
+      .from("profiles")
+      .select("username, must_change_password")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (profileError || !profile) throw new Error("تعذر التحقق من الحساب");
+
+    // Verify the password that is now active in Supabase Auth before clearing the
+    // forced-change flag. A direct call with the unchanged temporary password fails.
+    const url = process.env["SUPABASE_URL"];
+    const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
+    if (!url || !key) throw new Error("إعدادات تسجيل الدخول غير مكتملة");
+    const { createClient } = await import("@supabase/supabase-js");
+    const verifier = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: verified, error: verifyError } = await verifier.auth.signInWithPassword({
+      email: usernameToEmail(profile.username),
+      password: data.newPassword,
+    });
+    if (verifyError || verified.user?.id !== context.userId) {
+      throw new Error("يجب تغيير كلمة المرور أولًا باستخدام كلمة المرور الحالية");
+    }
+
+    const { error } = await db
+      .from("profiles")
+      .update({ must_change_password: false })
+      .eq("id", context.userId);
     if (error) throw new Error("تعذر تحديث حالة كلمة المرور");
     await logActivity({ actor_id: context.userId, action: "password_changed" });
     return { ok: true };
