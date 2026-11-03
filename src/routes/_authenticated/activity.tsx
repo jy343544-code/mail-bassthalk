@@ -59,6 +59,7 @@ const actions: Record<
   supervisor_recovered: { label: "استرداد حساب السوبر فايزر", tone: "warn", icon: ShieldAlert },
   recovery_failed: { label: "محاولة استرداد فاشلة", tone: "danger", icon: ShieldAlert },
   screenshot_attempt: { label: "محاولة تصوير", tone: "danger", icon: ShieldAlert },
+  log_cleared: { label: "مسح السجل", tone: "warn", icon: Trash2 },
   devtools_attempt: { label: "أدوات المطور", tone: "danger", icon: ShieldAlert },
   print_attempt: { label: "محاولة طباعة", tone: "danger", icon: ShieldAlert },
   save_attempt: { label: "محاولة حفظ", tone: "danger", icon: ShieldAlert },
