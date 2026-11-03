@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/call-follow-up")({
   component: CallFollowupPage,
 });
 
-type Contact = { id: string; message_id: string; source_row: number; full_name: string; phone: string };
+type Contact = { id: string; message_id: string; source_sheet: string; source_row: number; phone_index: number; full_name: string; phone: string };
 type Status = { id: string; label: string; is_active: boolean; sort_order: number };
 type Log = { id: string; contact_id: string; status_id: string; note: string; created_at: string; employeeName: string; statusLabel: string; contact: Contact | null };
 
@@ -25,8 +25,8 @@ function CallFollowupPage() {
   const qc = useQueryClient();
   const workspace = useQuery({ queryKey: ["call-followup-workspace"], queryFn: () => getCallFollowupWorkspace() });
   const [messageId, setMessageId] = useState("");
-  const [phoneColumn, setPhoneColumn] = useState("0");
-  const [nameColumn, setNameColumn] = useState("0");
+  const [phoneColumn, setPhoneColumn] = useState("-1");
+  const [nameColumn, setNameColumn] = useState("-1");
   const [selectedId, setSelectedId] = useState("");
   const [statusId, setStatusId] = useState("");
   const [note, setNote] = useState("");
@@ -56,9 +56,9 @@ function CallFollowupPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["call-followup-workspace"] });
   const sync = useMutation({
     mutationFn: () => syncCallFollowupContacts({ data: {
-      messageId, phoneColumn: Number(phoneColumn), nameColumn: nameColumn === "" ? null : Number(nameColumn),
+      messageId, phoneColumn: Number(phoneColumn), nameColumn: nameColumn === "60" ? -1 : Number(nameColumn),
     }}),
-    onSuccess: (r) => { toast.success(`تم استيراد ${r.count} رقم`); refresh(); },
+    onSuccess: (r) => { toast.success(`تم استيراد ${r.count} رقم من ${r.sheetsScanned} شيت`); refresh(); },
     onError: (e) => toast.error((e as Error).message),
   });
   const saveLog = useMutation({
@@ -105,24 +105,24 @@ function CallFollowupPage() {
         {preview.error && <p className="text-sm text-destructive">{(preview.error as Error).message}</p>}
         {preview.data && (
           <div className="grid gap-3 rounded-xl bg-muted/40 p-3 md:grid-cols-3">
-            <label className="space-y-1 text-sm"><span className="font-semibold">عمود رقم الهاتف</span><select value={phoneColumn} onChange={(e) => setPhoneColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2">{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
-            <label className="space-y-1 text-sm"><span className="font-semibold">عمود الاسم (اختياري)</span><select value={nameColumn} onChange={(e) => setNameColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="">بدون اسم</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
-            <div className="flex items-end"><button disabled={sync.isPending} onClick={() => sync.mutate()} className="h-10 w-full rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-50">{sync.isPending ? "جارٍ الاستيراد..." : `استيراد ${preview.data.totalRows} صف`}</button></div>
-            <p className="text-xs text-muted-foreground md:col-span-3">تتم قراءة الملف على الخادم، ولا يتم إرسال الملف الخام إلى المتصفح. سيتم تجاهل الصفوف التي لا تحتوي على رقم واضح.</p>
+            <label className="space-y-1 text-sm"><span className="font-semibold">مصدر أرقام الهاتف</span><select value={phoneColumn} onChange={(e) => setPhoneColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي — كل الأعمدة</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
+            <label className="space-y-1 text-sm"><span className="font-semibold">عمود الاسم</span><select value={nameColumn} onChange={(e) => setNameColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي من عنوان العمود</option><option value="60">بدون اسم</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
+            <div className="flex items-end"><button disabled={sync.isPending} onClick={() => sync.mutate()} className="h-10 w-full rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-50">{sync.isPending ? "جارٍ الاستيراد..." : `استيراد نحو ${preview.data.estimatedPhones} رقم`}</button></div>
+            <p className="text-xs text-muted-foreground md:col-span-3">يتم فحص كل أوراق Excel تلقائيًا واستخراج كل أرقام الهاتف من الخلايا، مع إزالة التكرار داخل الصف. يمكنك تحديد عمود يدويًا عند الحاجة. الملف يُقرأ على الخادم.</p>
           </div>
         )}
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <section className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
-          <div className="flex items-center justify-between gap-2"><h2 className="font-bold">2. قائمة الأرقام</h2><span className="text-xs text-muted-foreground">{visibleContacts.length} جهة اتصال</span></div>
+          <div className="flex items-center justify-between gap-2"><h2 className="font-bold">2. قائمة الأرقام</h2><span className="text-xs text-muted-foreground">{visibleContacts.length} رقم</span></div>
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="ابحث بالاسم أو رقم الهاتف..." className="h-10 w-full rounded-xl border bg-background px-3 text-sm" />
           {!messageId ? <p className="py-8 text-center text-sm text-muted-foreground">اختر ملفًا ثم استورد الأرقام لبدء المتابعة.</p> : visibleContacts.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">لا توجد أرقام مستوردة لهذا الشيت بعد.</p> : (
             <div className="max-h-[560px] space-y-2 overflow-auto">
               {visibleContacts.map((c) => {
                 const last = latestByContact.get(c.id);
                 return <button key={c.id} onClick={() => { setSelectedId(c.id); setStatusId(""); setNote(""); }} className={`w-full rounded-xl border p-3 text-right transition hover:bg-accent ${selectedId === c.id ? "border-primary bg-primary/5" : ""}`}>
-                  <div className="flex items-center justify-between gap-2"><span className="font-bold">{c.full_name || "بدون اسم"}</span><span className="text-xs text-muted-foreground">صف {c.source_row}</span></div>
+                  <div className="flex items-center justify-between gap-2"><span className="font-bold">{c.full_name || "بدون اسم"}</span><span className="text-xs text-muted-foreground">{c.source_sheet || "الشيت"} · صف {c.source_row}</span></div>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span dir="ltr" className="font-mono text-sm">{c.phone}</span><span className="text-xs text-muted-foreground">{last ? last.statusLabel : "لم تتم المتابعة"}</span></div>
                 </button>;
               })}
