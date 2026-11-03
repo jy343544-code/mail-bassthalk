@@ -19,6 +19,7 @@ import {
   BarChart3,
   ChevronLeft,
   ShieldCheck,
+  PhoneCall,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -298,6 +299,11 @@ function Layout() {
                 </Link>
               ))}
 
+              <Link to="/call-follow-up" className={navClass} activeProps={{ className: activeClass }}>
+                <PhoneCall className="size-4" />
+                متابعة المكالمات
+              </Link>
+
               {staff && (
                 <Link
                   to="/stats"
@@ -346,6 +352,12 @@ function Layout() {
                   <ChevronLeft className="mr-auto size-4 opacity-0 transition-opacity group-hover:opacity-60" />
                 </Link>
               ))}
+
+              <Link to="/call-follow-up" className={navClass} activeProps={{ className: activeClass }}>
+                <PhoneCall className="size-4 shrink-0" />
+                <span>متابعة المكالمات</span>
+                <ChevronLeft className="mr-auto size-4 opacity-0 transition-opacity group-hover:opacity-60" />
+              </Link>
 
               {staff && (
                 <>
