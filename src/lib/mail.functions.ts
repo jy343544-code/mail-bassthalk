@@ -8,7 +8,9 @@ const usernameSchema = z
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9._-]{3,30}$/, "اسم المستخدم: حروف إنجليزية وأرقام فقط (3-30)");
-const passwordSchema = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72);
+const passwordSchema = z.string().min(12, "كلمة المرور 12 حرفًا على الأقل").max(72);
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_RECIPIENTS = 100;
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -73,9 +75,15 @@ async function createUserWithRole(input: {
     username: input.username,
     must_change_password: input.mustChange,
   });
-  if (p.error) throw new Error(p.error.message);
+  if (p.error) {
+    await db.auth.admin.deleteUser(id);
+    throw new Error(p.error.message);
+  }
   const r = await db.from("user_roles").insert({ user_id: id, role: input.role });
-  if (r.error) throw new Error(r.error.message);
+  if (r.error) {
+    await db.auth.admin.deleteUser(id);
+    throw new Error(r.error.message);
+  }
   return id;
 }
 
@@ -178,7 +186,8 @@ export const markPasswordChanged = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = await admin();
-    await db.from("profiles").update({ must_change_password: false }).eq("id", context.userId);
+    const { error } = await db.from("profiles").update({ must_change_password: false }).eq("id", context.userId);
+    if (error) throw new Error("تعذر تحديث حالة كلمة المرور");
     await logActivity({ actor_id: context.userId, action: "password_changed" });
     return { ok: true };
   });
@@ -192,7 +201,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       .object({
         subject: z.string().trim().min(1, "اكتب عنوان الرسالة").max(200),
         body: z.string().max(5000).default(""),
-        recipientIds: z.array(z.string().uuid()).min(1, "اختر مستلم واحد على الأقل"),
+        recipientIds: z.array(z.string().uuid()).min(1, "اختر مستلم واحد على الأقل").max(MAX_RECIPIENTS, "الحد الأقصى 100 مستلم").refine((ids) => new Set(ids).size === ids.length, "يوجد مستلم مكرر"),
         sheetUrl: z
           .string()
           .trim()
@@ -213,7 +222,16 @@ export const sendMessage = createServerFn({ method: "POST" })
     const db = await admin();
     let filePath: string | null = null;
     if (data.file) {
-      const bin = Uint8Array.from(atob(data.file.base64), (c) => c.charCodeAt(0));
+      let decoded: string;
+      try {
+        decoded = atob(data.file.base64);
+      } catch {
+        throw new Error("محتوى الملف غير صالح");
+      }
+      if (decoded.length === 0 || decoded.length > MAX_ATTACHMENT_BYTES) {
+        throw new Error("حجم الملف يجب ألا يتجاوز 8 ميجابايت");
+      }
+      const bin = Uint8Array.from(decoded, (c) => c.charCodeAt(0));
       const ext = data.file.name.split(".").pop()!.toLowerCase();
       filePath = `${crypto.randomUUID()}.${ext}`;
       const up = await db.storage.from("sheets").upload(filePath, bin, {
