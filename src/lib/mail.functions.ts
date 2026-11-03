@@ -128,8 +128,15 @@ export const createAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireSupervisor(context as Ctx);
-    const id = await createUserWithRole({ ...data, mustChange: true });
-    await logActivity({ actor_id: context.userId, action: "account_created", target_user_id: id, details: { name: data.fullName, role: data.role } });
+    const { data: result, error } = await context.supabase.functions.invoke("create-account", {
+      body: data,
+    });
+    if (error) {
+      const payload = (error as any).context;
+      const message = payload?.error ?? error.message;
+      throw new Error(message || "تعذر إنشاء الحساب");
+    }
+    if (!result?.ok) throw new Error(result?.error ?? "تعذر إنشاء الحساب");
     return { ok: true };
   });
 
