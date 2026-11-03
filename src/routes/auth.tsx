@@ -1,10 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, LockKeyhole } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSetupStatus, requestPasswordReset, setupSupervisor } from "@/lib/mail.functions";
+import { requestPasswordReset } from "@/lib/mail.functions";
 import { usernameToEmail } from "@/lib/identity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +25,10 @@ export const Route = createFileRoute("/auth")({
 type View = "login" | "forgot";
 
 function AuthPage() {
-  const status = useQuery({ queryKey: ["setup"], queryFn: () => getSetupStatus(), retry: 1, staleTime: 30_000 });
   const [view, setView] = useState<View>("login");
-  const needsSetup = status.data?.needsSetup;
 
   return (
-    <main dir="rtl" className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#07111f] px-4 py-10 text-white">
+    <main dir="rtl" className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#09090d] px-4 py-10 text-white">
       <style>{`
         @keyframes auth-drift { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(28px,-22px,0) scale(1.08); } }
         @keyframes auth-glow { 0%,100% { opacity:.35; } 50% { opacity:.7; } }
@@ -44,22 +41,22 @@ function AuthPage() {
       `}</style>
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
         <div className="auth-grid absolute inset-0" />
-        <div className="auth-orb absolute -right-28 -top-32 h-[26rem] w-[26rem] rounded-full bg-cyan-400/20 blur-[100px]" />
-        <div className="auth-orb-delay absolute -bottom-40 -left-24 h-[30rem] w-[30rem] rounded-full bg-blue-600/25 blur-[110px]" />
-        <div className="absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/10" />
-        <div className="absolute left-1/2 top-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-300/[0.07]" />
+        <div className="auth-orb absolute -right-28 -top-32 h-[26rem] w-[26rem] rounded-full bg-violet-500/10 blur-[100px]" />
+        <div className="auth-orb-delay absolute -bottom-40 -left-24 h-[30rem] w-[30rem] rounded-full bg-teal-500/10 blur-[110px]" />
+        <div className="absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-400/10" />
+        <div className="absolute left-1/2 top-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-teal-400/[0.07]" />
       </div>
 
-      <section className="auth-card grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 shadow-[0_30px_100px_rgba(0,0,0,.5)] backdrop-blur-2xl md:grid-cols-[1.05fr_.95fr]">
-        <div className="relative hidden min-h-[620px] flex-col justify-between overflow-hidden border-l border-white/10 bg-gradient-to-br from-cyan-400/10 via-slate-900/30 to-blue-600/10 p-10 md:flex">
-          <div className="absolute -left-20 top-24 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
+      <section className="auth-card grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/[0.08] bg-[#14141b] shadow-[0_30px_100px_rgba(0,0,0,.5)] backdrop-blur-2xl md:grid-cols-[1.05fr_.95fr]">
+        <div className="relative hidden min-h-[620px] flex-col justify-between overflow-hidden border-l border-white/10 bg-[#111117] p-10 md:flex">
+          <div className="absolute -left-20 top-24 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
           <div className="relative flex items-center gap-3">
-            <img src="/brand-mark.svg" alt="شعار بستطهالك" className="size-12 rounded-2xl shadow-lg shadow-cyan-950/30" />
+            <img src="/brand-mark.svg" alt="شعار بستطهالك" className="size-12 rounded-2xl shadow-lg shadow-violet-950/30" />
             <div><p className="text-lg font-bold tracking-wide">بستطهالك</p><p className="text-xs text-slate-400">منظومة التواصل الداخلي</p></div>
           </div>
           <div className="relative space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-100"><Sparkles className="size-3.5" /> مساحة عمل واحدة لفريقك</div>
-            <h2 className="max-w-md text-4xl font-bold leading-[1.35]">تواصل أسرع.<br /><span className="bg-gradient-to-l from-cyan-200 to-blue-300 bg-clip-text text-transparent">تنظيم أوضح.</span></h2>
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-xs font-medium text-violet-200"><Sparkles className="size-3.5" /> مساحة عمل واحدة لفريقك</div>
+            <h2 className="max-w-md text-4xl font-bold leading-[1.35]">تواصل أسرع.<br /><span className="bg-gradient-to-l from-violet-300 to-teal-300 bg-clip-text text-transparent">تنظيم أوضح.</span></h2>
             <p className="max-w-sm text-sm leading-7 text-slate-300">بريد داخلي ومراسلات ومشاركة ملفات، في تجربة عمل موحّدة وآمنة لفريقك.</p>
             <div className="flex flex-wrap gap-3 pt-2 text-xs text-slate-300">
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2">مراسلات الفريق</span>
@@ -67,7 +64,7 @@ function AuthPage() {
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2">متابعة منظمة</span>
             </div>
           </div>
-          <div className="relative flex items-center gap-2 text-xs text-slate-500"><ShieldCheck className="size-4 text-cyan-300" /> بيئة مخصصة لفريق بستطهالك</div>
+          <div className="relative flex items-center gap-2 text-xs text-slate-500"><ShieldCheck className="size-4 text-violet-300" /> بيئة مخصصة لفريق بستطهالك</div>
         </div>
 
         <div className="flex min-h-[620px] flex-col justify-center p-7 sm:p-10">
@@ -76,22 +73,18 @@ function AuthPage() {
             <div><p className="font-bold">بستطهالك</p><p className="text-xs text-slate-400">البريد الداخلي</p></div>
           </div>
           <div className="mb-8">
-            <div className="mb-4 inline-flex size-12 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200"><LockKeyhole className="size-5" /></div>
-            <p className="mb-2 text-xs font-semibold tracking-[.18em] text-cyan-300">WORKSPACE ACCESS</p>
-            <h1 className="text-3xl font-bold tracking-tight">{needsSetup ? "إعداد حساب المشرف" : view === "login" ? "أهلاً بعودتك" : "استعادة كلمة المرور"}</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-400">{needsSetup ? "أنشئ حساب المشرف الأول لبدء استخدام النظام." : view === "login" ? "سجّل دخولك للمتابعة إلى مساحة العمل." : "اكتب اسم المستخدم لإرسال طلب استعادة كلمة المرور."}</p>
+            <div className="mb-4 inline-flex size-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/10 text-violet-200"><LockKeyhole className="size-5" /></div>
+            <p className="mb-2 text-xs font-semibold tracking-[.18em] text-violet-300">WORKSPACE ACCESS</p>
+            <h1 className="text-3xl font-bold tracking-tight">{view === "login" ? "أهلاً بعودتك" : "استعادة كلمة المرور"}</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-400">{view === "login" ? "سجّل دخولك للمتابعة إلى مساحة العمل." : "اكتب اسم المستخدم لإرسال طلب استعادة كلمة المرور."}</p>
           </div>
-          {status.isLoading ? (
-            <p className="py-8 text-center text-sm text-slate-400">جاري تجهيز مساحة العمل...</p>
-           ) : needsSetup ? (
-            <SetupForm />
-          ) : view === "login" ? (
+          {view === "login" ? (
             <LoginForm onForgot={() => setView("forgot")} />
           ) : (
             <ForgotForm onBack={() => setView("login")} />
           )}
           <p className="mt-8 flex items-center justify-center gap-2 border-t border-white/10 pt-5 text-xs text-slate-500">
-            <ShieldCheck className="size-4 text-cyan-300" /> يتم تسجيل عمليات الدخول لحماية مساحة العمل
+            <ShieldCheck className="size-4 text-violet-300" /> يتم تسجيل عمليات الدخول لحماية مساحة العمل
           </p>
         </div>
       </section>
@@ -119,34 +112,13 @@ function LoginForm({ onForgot }: { onForgot: () => void }) {
     }}>
       <div className="space-y-2">
         <Label htmlFor="un" className="text-slate-200">اسم المستخدم</Label>
-        <Input id="un" dir="ltr" autoComplete="username" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white placeholder:text-slate-600 focus-visible:ring-cyan-400" />
+        <Input id="un" dir="ltr" autoComplete="username" placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white placeholder:text-slate-600 focus-visible:ring-violet-400" />
       </div>
       <div className="space-y-2">
-        <div className="flex items-center justify-between"><Label htmlFor="pw" className="text-slate-200">كلمة المرور</Label><button type="button" onClick={onForgot} className="text-xs text-cyan-300 transition hover:text-cyan-200 hover:underline">نسيت كلمة المرور؟</button></div>
+        <div className="flex items-center justify-between"><Label htmlFor="pw" className="text-slate-200">كلمة المرور</Label><button type="button" onClick={onForgot} className="text-xs text-cyan-300 transition hover:text-violet-200 hover:underline">نسيت كلمة المرور؟</button></div>
         <Input id="pw" type="password" dir="ltr" autoComplete="current-password" placeholder="••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white placeholder:text-slate-600 focus-visible:ring-cyan-400" />
       </div>
-      <Button type="submit" className="h-12 w-full bg-gradient-to-l from-cyan-500 to-blue-600 text-base font-semibold text-white shadow-lg shadow-cyan-950/40 transition hover:brightness-110" disabled={busy}>{busy ? "جاري تسجيل الدخول..." : "دخول إلى مساحة العمل"}</Button>
-    </form>
-  );
-}
-
-function SetupForm() {
-  const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  return (
-    <form className="space-y-4" onSubmit={async (e) => {
-      e.preventDefault(); setBusy(true);
-      try { await setupSupervisor({ data: { fullName, username, password } }); await signIn(username, password); navigate({ to: "/inbox" }); }
-      catch (err) { toast.error((err as Error).message); }
-      finally { setBusy(false); }
-    }}>
-      <div className="space-y-2"><Label className="text-slate-200">الاسم بالكامل</Label><Input value={fullName} onChange={(e) => setFullName(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white" /></div>
-      <div className="space-y-2"><Label className="text-slate-200">اسم المستخدم</Label><Input dir="ltr" value={username} onChange={(e) => setUsername(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white" /></div>
-      <div className="space-y-2"><Label className="text-slate-200">كلمة المرور</Label><Input type="password" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white" /></div>
-      <Button type="submit" className="h-12 w-full bg-gradient-to-l from-cyan-500 to-blue-600 text-white" disabled={busy}>{busy ? "جاري..." : "إنشاء الحساب والدخول"}</Button>
+      <Button type="submit" className="h-12 w-full bg-gradient-to-l from-[#5145cd] to-[#8652d8] text-base font-semibold text-white shadow-lg shadow-violet-950/30 transition hover:brightness-110" disabled={busy}>{busy ? "جاري تسجيل الدخول..." : "دخول إلى مساحة العمل"}</Button>
     </form>
   );
 }
@@ -157,7 +129,7 @@ function ForgotForm({ onBack }: { onBack: () => void }) {
   const [sent, setSent] = useState(false);
   return (
     <div className="space-y-5">
-      <button onClick={onBack} className="flex items-center gap-2 text-sm text-cyan-300 transition hover:text-cyan-200"><ArrowRight className="size-4" /> رجوع لتسجيل الدخول</button>
+      <button onClick={onBack} className="flex items-center gap-2 text-sm text-cyan-300 transition hover:text-violet-200"><ArrowRight className="size-4" /> رجوع لتسجيل الدخول</button>
       {sent ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] px-5 py-8 text-center"><CheckCircle2 className="size-10 text-emerald-300" /><p className="font-semibold text-white">تم إرسال طلبك للسوبر فايزر</p><p className="text-sm leading-6 text-slate-400">هيبعتلك كلمة مرور مؤقتة جديدة، وأول ما تدخل بيها هتغيرها.</p></div>
       ) : (
