@@ -197,13 +197,11 @@ export const completePasswordChange = createServerFn({ method: "POST" })
     const db = await admin();
     const { data: profile, error: profileError } = await db
       .from("profiles")
-      .select("username, must_change_password")
+      .select("username")
       .eq("id", context.userId)
       .maybeSingle();
     if (profileError || !profile) throw new Error("تعذر التحقق من الحساب");
 
-    // Verify the password that is now active in Supabase Auth before clearing the
-    // forced-change flag. A direct call with the unchanged temporary password fails.
     const url = process.env["SUPABASE_URL"];
     const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
     if (!url || !key) throw new Error("إعدادات تسجيل الدخول غير مكتملة");
@@ -213,17 +211,23 @@ export const completePasswordChange = createServerFn({ method: "POST" })
     });
     const { data: verified, error: verifyError } = await verifier.auth.signInWithPassword({
       email: usernameToEmail(profile.username),
-      password: data.newPassword,
+      password: data.currentPassword,
     });
     if (verifyError || verified.user?.id !== context.userId) {
-      throw new Error("يجب تغيير كلمة المرور أولًا باستخدام كلمة المرور الحالية");
+      throw new Error("كلمة المرور الحالية غير صحيحة");
     }
+
+    // Perform the password update only after the server verifies the current password.
+    const { error: passwordError } = await db.auth.admin.updateUserById(context.userId, {
+      password: data.newPassword,
+    });
+    if (passwordError) throw new Error(passwordError.message);
 
     const { error } = await db
       .from("profiles")
       .update({ must_change_password: false })
       .eq("id", context.userId);
-    if (error) throw new Error("تعذر تحديث حالة كلمة المرور");
+    if (error) throw new Error("تم تغيير كلمة المرور لكن تعذر تحديث حالة الحساب");
     await logActivity({ actor_id: context.userId, action: "password_changed" });
     return { ok: true };
   });
