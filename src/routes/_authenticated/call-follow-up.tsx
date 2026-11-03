@@ -122,6 +122,23 @@ function CallFollowupPage() {
             </div>
           </div>
         )}
+        {preview.data?.sample?.length > 0 && (
+          <div className="overflow-hidden rounded-xl border">
+            <div className="border-b bg-muted/40 px-3 py-2 text-sm font-bold">معاينة الأسماء والأرقام التي سيتم عرضها بالموقع</div>
+            <div className="max-h-64 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-background"><tr className="border-b text-right"><th className="p-2">الاسم</th><th className="p-2">رقم الهاتف</th><th className="p-2">صف الشيت</th></tr></thead>
+                <tbody>{preview.data.sample.map((item: any, index: number) => (
+                  <tr key={index} className="border-b last:border-0">
+                    <td className="p-2">{item.fullName || "بدون اسم"}</td>
+                    <td dir="ltr" className="p-2 text-right font-mono">{item.phone}</td>
+                    <td className="p-2 text-muted-foreground">{item.row}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
         {preview.data && (
           <div className="grid gap-3 rounded-xl bg-muted/40 p-3 md:grid-cols-3">
             <label className="space-y-1 text-sm"><span className="font-semibold">مصدر أرقام الهاتف</span><select value={phoneColumn} onChange={(e) => setPhoneColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">تلقائي — كل أعمدة الهاتف المكتشفة</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
