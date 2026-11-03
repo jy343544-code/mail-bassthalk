@@ -29,7 +29,7 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const ctx = context as Ctx;
-    const db: any = await admin();
+    const db: any = ctx.supabase;
     const [messages, statuses, profile] = await Promise.all([
       ctx.supabase.from("messages").select("id, subject, file_name, created_at, file_path")
         .not("file_path", "is", null).order("created_at", { ascending: false }).limit(100),
@@ -77,7 +77,7 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
       messages: (messages.data ?? []).map((m: any) => ({ id: m.id, subject: m.subject, fileName: m.file_name, createdAt: m.created_at })),
       statuses: (statuses.data ?? []).filter((status: any) => status.is_active),
       isStaff,
-      profileName: profile?.full_name ?? "",
+      profileName: profile.data?.full_name ?? "",
       contacts: contacts ?? [],
       logs: visibleLogs.map((l: any) => ({
         ...l,
@@ -277,7 +277,7 @@ export const saveCallFollowupLog = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
-    const db: any = await admin();
+    const db: any = ctx.supabase;
     const { data: contact } = await db.from("call_followup_contacts").select("id, message_id").eq("id", data.contactId).maybeSingle();
     if (!contact) throw new Error("جهة الاتصال غير موجودة");
     await visibleMessage(ctx, contact.message_id);
@@ -296,7 +296,7 @@ export const saveCallFollowupStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     await requireStaff(ctx);
-    const db: any = await admin();
+    const db: any = ctx.supabase;
     const result = data.id
       ? await db.from("call_followup_statuses").update({ label: data.label, sort_order: data.sortOrder }).eq("id", data.id)
       : await db.from("call_followup_statuses").insert({ label: data.label, sort_order: data.sortOrder, created_by: ctx.userId });
@@ -309,7 +309,7 @@ export const deactivateCallFollowupStatus = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireStaff(context as Ctx);
-    const db: any = await admin();
+    const db: any = (context as Ctx).supabase;
     const { error } = await db.from("call_followup_statuses").update({ is_active: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
