@@ -41,22 +41,30 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
     const contacts: any[] = [];
     for (let offset = 0; offset < messageIds.length; offset += 500) {
       const batchIds = messageIds.slice(offset, offset + 500);
-      const { data: batch, error: contactError } = await db.from("call_followup_contacts")
-        .select("id, message_id, source_sheet, source_row, phone_index, full_name, phone")
-        .in("message_id", batchIds).order("source_row", { ascending: true }).order("phone_index", { ascending: true });
-      if (contactError) throw new Error(contactError.message);
-      contacts.push(...(batch ?? []));
+      for (let page = 0; ; page++) {
+        const { data: batch, error: contactError } = await db.from("call_followup_contacts")
+          .select("id, message_id, source_sheet, source_row, phone_index, full_name, phone")
+          .in("message_id", batchIds).order("source_row", { ascending: true }).order("phone_index", { ascending: true })
+          .range(page * 1000, page * 1000 + 999);
+        if (contactError) throw new Error(contactError.message);
+        contacts.push(...(batch ?? []));
+        if (!batch || batch.length < 1000) break;
+      }
     }
     const contactById = new Map(contacts.map((c: any) => [c.id, c]));
     const logs: any[] = [];
     for (let offset = 0; offset < contacts.length; offset += 500) {
       const contactIds = contacts.slice(offset, offset + 500).map((c: any) => c.id);
       if (!contactIds.length) continue;
-      const { data: batch, error: logError } = await db.from("call_followup_logs")
-        .select("id, contact_id, status_id, employee_id, note, created_at")
-        .in("contact_id", contactIds).order("created_at", { ascending: false });
-      if (logError) throw new Error(logError.message);
-      logs.push(...(batch ?? []));
+      for (let page = 0; ; page++) {
+        const { data: batch, error: logError } = await db.from("call_followup_logs")
+          .select("id, contact_id, status_id, employee_id, note, created_at")
+          .in("contact_id", contactIds).order("created_at", { ascending: false })
+          .range(page * 1000, page * 1000 + 999);
+        if (logError) throw new Error(logError.message);
+        logs.push(...(batch ?? []));
+        if (!batch || batch.length < 1000) break;
+      }
     }
     logs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const visibleLogs = (logs ?? []).filter((l: any) => {
