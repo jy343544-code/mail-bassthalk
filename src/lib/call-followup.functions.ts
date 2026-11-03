@@ -3,10 +3,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Ctx = { supabase: any; userId: string };
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
-}
 async function hasRole(ctx: Ctx, role: "supervisor" | "manager") {
   const { data } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: role });
   return data === true;
@@ -154,7 +150,7 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     const msg = await visibleMessage(ctx, data.messageId);
-    const db: any = await admin();
+    const db: any = ctx.supabase
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
