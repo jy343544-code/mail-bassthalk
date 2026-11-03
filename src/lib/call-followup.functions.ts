@@ -46,7 +46,7 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
     if (logError) throw new Error(logError.message);
     const allowedIds = new Set((messages.data ?? []).map((m: any) => m.id));
     const { data: contacts, error: contactError } = await db.from("call_followup_contacts")
-      .select("id, message_id, source_row, full_name, phone")
+      .select("id, message_id, source_sheet, source_row, phone_index, full_name, phone")
       .in("message_id", [...allowedIds].length ? [...allowedIds] : ["00000000-0000-0000-0000-000000000000"]);
     if (contactError) throw new Error(contactError.message);
     const contactById = new Map((contacts ?? []).map((c: any) => [c.id, c]));
@@ -75,6 +75,28 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
     };
   });
 
+function normalizeDigits(value: string) {
+  return value
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+}
+
+function extractPhoneNumbers(value: unknown): string[] {
+  const text = normalizeDigits(String(value ?? ""));
+  const candidates = text.match(/(?:\\+|00)?[0-9][0-9\\s().-]{5,20}[0-9]/g) ?? [];
+  const found = new Set<string>();
+  for (const candidate of candidates) {
+    let digits = candidate.replace(/\\D/g, "");
+    if (digits.startsWith("0020")) digits = digits.slice(2);
+    if (digits.length >= 7 && digits.length <= 15) found.add(digits);
+  }
+  return [...found];
+}
+
+function headerIndex(headers: unknown[], pattern: RegExp): number {
+  return headers.findIndex((value) => pattern.test(normalizeDigits(String(value ?? "")).toLowerCase()));
+}
+
 export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ messageId: z.string().uuid() }).parse(d))
@@ -86,19 +108,34 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
     const wb = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: "array" });
-    const first = wb.Sheets[wb.SheetNames[0]];
-    if (!first) throw new Error("ملف الشيت فارغ");
-    const rows = (XLSX.utils.sheet_to_json(first, { header: 1, defval: "", raw: false }) as unknown[][])
-      .slice(0, 3000).map((r) => r.slice(0, 60).map((v) => String(v ?? "")));
-    return { message: { id: msg.id, subject: msg.subject }, headers: rows[0] ?? [], sample: rows.slice(1, 6), totalRows: Math.max(0, rows.length - 1) };
+    const sheets = wb.SheetNames.map((name) => {
+      const rows = (XLSX.utils.sheet_to_json(wb.Sheets[name]!, { header: 1, defval: "", raw: false }) as unknown[][])
+        .slice(0, 10000);
+      const headers = (rows[0] ?? []).slice(0, 60).map((v) => String(v ?? ""));
+      const phoneHeader = headerIndex(headers, /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i);
+      const estimated = rows.slice(1).reduce((sum, row) => {
+        const cells = phoneHeader >= 0 ? [row[phoneHeader]] : row;
+        return sum + cells.reduce((n, cell) => n + extractPhoneNumbers(cell).length, 0);
+      }, 0);
+      return { name, headers, totalRows: Math.max(0, rows.length - 1), estimatedPhones: estimated };
+    });
+    if (!sheets.length) throw new Error("ملف الشيت فارغ");
+    return {
+      message: { id: msg.id, subject: msg.subject },
+      headers: sheets[0]!.headers,
+      sample: [],
+      totalRows: sheets.reduce((sum, sheet) => sum + sheet.totalRows, 0),
+      sheets,
+      estimatedPhones: sheets.reduce((sum, sheet) => sum + sheet.estimatedPhones, 0),
+    };
   });
 
 export const syncCallFollowupContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     messageId: z.string().uuid(),
-    phoneColumn: z.number().int().min(0).max(59),
-    nameColumn: z.number().int().min(0).max(59).nullable(),
+    phoneColumn: z.number().int().min(-1).max(59).default(-1),
+    nameColumn: z.number().int().min(-1).max(59).default(-1),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
@@ -108,20 +145,55 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
     const wb = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: "array" });
-    const first = wb.Sheets[wb.SheetNames[0]];
-    if (!first) throw new Error("ملف الشيت فارغ");
-    const rows = (XLSX.utils.sheet_to_json(first, { header: 1, defval: "", raw: false }) as unknown[][]).slice(0, 3000);
-    const records = rows.slice(1).map((row, index) => ({
-      message_id: data.messageId,
-      source_row: index + 2,
-      full_name: data.nameColumn === null ? "" : String(row[data.nameColumn] ?? "").trim(),
-      phone: String(row[data.phoneColumn] ?? "").replace(/[\s().-]/g, "").trim(),
-    })).filter((r) => r.phone.length >= 5);
-    if (!records.length) throw new Error("لم يتم العثور على أرقام في العمود المحدد");
-    const { error: upsertError } = await db.from("call_followup_contacts")
-      .upsert(records, { onConflict: "message_id,source_row" });
-    if (upsertError) throw new Error(upsertError.message);
-    return { count: records.length };
+    const records: Array<Record<string, unknown>> = [];
+    let scannedRows = 0;
+    for (const sheetName of wb.SheetNames) {
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) continue;
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false }) as unknown[][];
+      const headers = rows[0] ?? [];
+      const detectedNameColumn = headerIndex(headers, /(name|full.?name|الاسم|اسم العميل|اسم الطالب)/i);
+      const detectedPhoneColumn = headerIndex(headers, /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i);
+      for (let rowIndex = 1; rowIndex < rows.length && rowIndex < 10000; rowIndex++) {
+        const row = rows[rowIndex] ?? [];
+        scannedRows++;
+        const columns = data.phoneColumn >= 0
+          ? [data.phoneColumn]
+          : detectedPhoneColumn >= 0 ? [detectedPhoneColumn] : row.map((_, index) => index);
+        const nameColumn = data.nameColumn >= 0 ? data.nameColumn : detectedNameColumn;
+        const name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim().slice(0, 180) : "";
+        const seen = new Set<string>();
+        let phoneIndex = 0;
+        for (const column of columns) {
+          for (const phone of extractPhoneNumbers(row[column])) {
+            if (seen.has(phone)) continue;
+            seen.add(phone);
+            phoneIndex++;
+            records.push({
+              message_id: data.messageId,
+              source_sheet: sheetName.slice(0, 120),
+              source_row: rowIndex + 1,
+              phone_index: phoneIndex,
+              full_name: name,
+              phone,
+            });
+          }
+        }
+      }
+    }
+    if (!records.length) throw new Error("لم يتم العثور على أرقام هاتف. راجع تنسيق الشيت أو اختر عمود الهاتف يدويًا.");
+    const chunkSize = 500;
+    for (let i = 0; i < records.length; i += chunkSize) {
+      const { error: upsertError } = await db.from("call_followup_contacts")
+        .upsert(records.slice(i, i + chunkSize), { onConflict: "message_id,source_sheet,source_row,phone_index" });
+      if (upsertError) throw new Error(upsertError.message);
+    }
+    return {
+      count: records.length,
+      rowsScanned: scannedRows,
+      sheetsScanned: wb.SheetNames.length,
+      uniquePhones: new Set(records.map((record) => record.phone)).size,
+    };
   });
 
 export const saveCallFollowupLog = createServerFn({ method: "POST" })
