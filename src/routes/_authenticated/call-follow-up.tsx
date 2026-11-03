@@ -49,7 +49,10 @@ function CallFollowupPage() {
     for (const log of logs) if (!map.has(log.contact_id)) map.set(log.contact_id, log);
     return map;
   }, [logs]);
-  const visibleContacts = contacts.filter((c) => c.message_id === messageId && (
+  const messageContacts = contacts.filter((c) => c.message_id === messageId);
+  const contactedCount = messageContacts.filter((c) => latestByContact.has(c.id)).length;
+  const pendingCount = messageContacts.length - contactedCount;
+  const visibleContacts = messageContacts.filter((c) => (
     !filter || c.full_name.toLowerCase().includes(filter.toLowerCase()) || c.phone.includes(filter)
   ));
 
@@ -58,7 +61,7 @@ function CallFollowupPage() {
     mutationFn: () => syncCallFollowupContacts({ data: {
       messageId, phoneColumn: Number(phoneColumn), nameColumn: Number(nameColumn),
     }}),
-    onSuccess: (r) => { toast.success(`تم استيراد ${r.count} رقم من ${r.sheetsScanned} شيت`); refresh(); },
+    onSuccess: (r) => { toast.success(`تم استيراد ${r.count} رقم (${r.uniquePhones} رقم فريد) من ${r.sheetsScanned} شيت`); refresh(); },
     onError: (e) => toast.error((e as Error).message),
   });
   const saveLog = useMutation({
@@ -104,14 +107,46 @@ function CallFollowupPage() {
         </div>
         {preview.error && <p className="text-sm text-destructive">{(preview.error as Error).message}</p>}
         {preview.data && (
+          <div className="space-y-2 rounded-xl border bg-background p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-bold">ملخص قراءة الملف</span>
+              <span className="text-xs text-muted-foreground">{preview.data.totalRows} صف · {preview.data.sheets.length} ورقة · نحو {preview.data.estimatedPhones} رقم</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {preview.data.sheets.map((sheet: any) => (
+                <div key={sheet.name} className="rounded-lg bg-muted/50 p-3 text-xs">
+                  <div className="font-bold">{sheet.name}</div>
+                  <div className="mt-1 text-muted-foreground">{sheet.totalRows} صف · {sheet.phoneColumns.length || "فحص تلقائي"} أعمدة هاتف · {sheet.estimatedPhones} رقم متوقع</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {preview.data && (
           <div className="grid gap-3 rounded-xl bg-muted/40 p-3 md:grid-cols-3">
-            <label className="space-y-1 text-sm"><span className="font-semibold">مصدر أرقام الهاتف</span><select value={phoneColumn} onChange={(e) => setPhoneColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي — كل الأعمدة</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
+            <label className="space-y-1 text-sm"><span className="font-semibold">مصدر أرقام الهاتف</span><select value={phoneColumn} onChange={(e) => setPhoneColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">تلقائي — كل أعمدة الهاتف المكتشفة</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
             <label className="space-y-1 text-sm"><span className="font-semibold">عمود الاسم</span><select value={nameColumn} onChange={(e) => setNameColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي من عنوان العمود</option><option value="-2">بدون اسم</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
             <div className="flex items-end"><button disabled={sync.isPending} onClick={() => sync.mutate()} className="h-10 w-full rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-50">{sync.isPending ? "جارٍ الاستيراد..." : `استيراد نحو ${preview.data.estimatedPhones} رقم`}</button></div>
-            <p className="text-xs text-muted-foreground md:col-span-3">يتم فحص كل أوراق Excel تلقائيًا واستخراج كل أرقام الهاتف من الخلايا، مع إزالة التكرار داخل الصف. يمكنك تحديد عمود يدويًا عند الحاجة. الملف يُقرأ على الخادم.</p>
+            <p className="text-xs text-muted-foreground md:col-span-3">يتم فحص كل أوراق Excel، وقراءة جميع أعمدة الهاتف المكتشفة في كل ورقة حتى لو اخترت عمودًا يدويًا إضافيًا. يتم ربط الرقم بالاسم تلقائيًا أو بأول خلية اسم واضحة في الصف. يدعم أرقام المحمول المصرية المكتوبة بالأرقام العربية أو الإنجليزية.</p>
           </div>
         )}
       </section>
+
+      {messageId && (
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { label: "إجمالي جهات الاتصال", value: messageContacts.length },
+            { label: "تمت متابعتها", value: contactedCount },
+            { label: "لم تتم متابعتها", value: pendingCount },
+            { label: "نسبة المتابعة", value: messageContacts.length ? `${Math.round((contactedCount / messageContacts.length) * 100)}%` : "0%" },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border bg-card p-4 shadow-sm">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="mt-2 text-2xl font-extrabold tabular-nums">{item.value}</p>
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <section className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
