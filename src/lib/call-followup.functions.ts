@@ -161,12 +161,27 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
       const headers = (rows[headerRow] ?? []).slice(0, 80).map((v) => String(v ?? ""));
       const phoneColumns = detectPhoneColumns(headers);
       const nameColumn = detectNameColumn(headers);
-      const estimatedPhones = rows.slice(headerRow + 1, 10001).reduce((sum, row) => {
-        const columns = phoneColumns.length ? phoneColumns : row.map((_, index) => index);
-        return sum + columns.reduce((n, index) => n + extractPhoneNumbers(row[index], phoneColumns.includes(index)).length, 0);
-      }, 0);
+      const sample: Array<{ fullName: string; phone: string; row: number }> = [];
+      let estimatedPhones = 0;
+      for (let rowIndex = headerRow + 1; rowIndex < rows.length && rowIndex <= headerRow + 10000; rowIndex++) {
+        const row = rows[rowIndex] ?? [];
+        const numbers = row.flatMap((value, index) => extractPhoneNumbers(value, phoneColumns.includes(index)));
+        const unique = [...new Set(numbers)];
+        estimatedPhones += unique.length;
+        let fullName = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim() : "";
+        if (!fullName) {
+          const candidate = row.find((value) => {
+            const text = String(value ?? "").trim();
+            return text.length >= 2 && text.length <= 120 && /[\\p{L}]/u.test(text) && !extractPhoneNumbers(text, true).length;
+          });
+          fullName = candidate === undefined ? "" : String(candidate).trim();
+        }
+        for (const phone of unique) {
+          if (sample.length < 12) sample.push({ fullName, phone, row: rowIndex + 1 });
+        }
+      }
       return {
-        name, headers, headerRow, nameColumn, phoneColumns,
+        name, headers, headerRow, nameColumn, phoneColumns, sample,
         totalRows: Math.max(0, Math.min(rows.length - headerRow - 1, 10000)),
         estimatedPhones,
       };
@@ -175,7 +190,7 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
     return {
       message: { id: msg.id, subject: msg.subject },
       headers: sheets[0]!.headers,
-      sample: [],
+      sample: sheets.flatMap((sheet) => sheet.sample).slice(0, 20),
       totalRows: sheets.reduce((sum, sheet) => sum + sheet.totalRows, 0),
       sheets,
       estimatedPhones: sheets.reduce((sum, sheet) => sum + sheet.estimatedPhones, 0),
@@ -192,7 +207,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     const msg = await visibleMessage(ctx, data.messageId);
-    const db: any = await admin();
+    const db: any = ctx.supabase;
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
@@ -212,11 +227,11 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
       for (let rowIndex = headerRow + 1; rowIndex < rows.length && rowIndex <= headerRow + 10000; rowIndex++) {
         const row = rows[rowIndex] ?? [];
         scannedRows++;
+        // Always scan every cell for Egyptian mobiles; known phone columns also accept landlines/international numbers.
+        const candidateColumns = row.map((_, index) => index);
         const selectedColumns = data.phoneColumn >= 0 ? [data.phoneColumn] : [];
-        const columns = [...new Set([...detectedPhoneColumns, ...selectedColumns])];
-        const scanAllColumns = columns.length === 0;
-        const candidateColumns = scanAllColumns ? row.map((_, index) => index) : columns;
-        let nameColumn = data.nameColumn >= 0 ? data.nameColumn : detectedNameColumn;
+        const explicitColumns = new Set([...detectedPhoneColumns, ...selectedColumns]);
+        const nameColumn = data.nameColumn === -2 ? -1 : data.nameColumn >= 0 ? data.nameColumn : detectedNameColumn;
         let name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim() : "";
         if (!name) {
           const nameCandidate = row.find((value, index) => {
@@ -229,7 +244,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
         const seen = new Set<string>();
         let phoneIndex = 0;
         for (const column of candidateColumns) {
-          const explicitPhoneColumn = detectedPhoneColumns.includes(column) || column === data.phoneColumn;
+          const explicitPhoneColumn = explicitColumns.has(column);
           for (const phone of extractPhoneNumbers(row[column], explicitPhoneColumn)) {
             if (seen.has(phone)) continue;
             seen.add(phone);
