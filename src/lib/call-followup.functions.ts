@@ -115,7 +115,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
       message_id: data.messageId,
       source_row: index + 2,
       full_name: data.nameColumn === null ? "" : String(row[data.nameColumn] ?? "").trim(),
-      phone: String(row[data.phoneColumn] ?? "").replace(/[\\s().-]/g, "").trim(),
+      phone: String(row[data.phoneColumn] ?? "").replace(/[\s().-]/g, "").trim(),
     })).filter((r) => r.phone.length >= 5);
     if (!records.length) throw new Error("لم يتم العثور على أرقام في العمود المحدد");
     const { error: upsertError } = await db.from("call_followup_contacts")

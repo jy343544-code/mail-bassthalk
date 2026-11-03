@@ -10,8 +10,7 @@ import {
   LockKeyhole,
   CheckCircle2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { markPasswordChanged } from "@/lib/mail.functions";
+import { completePasswordChange } from "@/lib/mail.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,15 +78,15 @@ function ChangePassword() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const validLength = next.length >= 6;
+  const validLength = next.length >= 12;
   const matches = next.length > 0 && next === confirm;
   const different = next.length > 0 && next !== current;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (next.length < 6) {
-      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    if (next.length < 12) {
+      toast.error("كلمة المرور يجب أن تكون 12 حرفًا على الأقل");
       return;
     }
 
@@ -104,19 +103,7 @@ function ChangePassword() {
     setBusy(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: next,
-        current_password: current,
-      } as Parameters<typeof supabase.auth.updateUser>[0]);
-
-      if (error) {
-        toast.error(
-          error.message || "تعذر تغيير كلمة المرور. راجع كلمة المرور الحالية."
-        );
-        return;
-      }
-
-      await markPasswordChanged();
+      await completePasswordChange({ data: { currentPassword: current, newPassword: next } });
 
       toast.success("تم تغيير كلمة المرور بنجاح");
 
@@ -186,7 +173,7 @@ function ChangePassword() {
                 }
               >
                 <CheckCircle2 className="size-3.5" />
-                6 أحرف على الأقل
+                12 حرفًا على الأقل
               </span>
 
               <span
