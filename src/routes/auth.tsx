@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, CheckCircle2, Mail, ShieldCheck, Sparkles, LockKeyhole } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, LockKeyhole } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSetupStatus, requestPasswordReset, setupSupervisor } from "@/lib/mail.functions";
 import { usernameToEmail } from "@/lib/identity";
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/auth")({
 type View = "login" | "forgot";
 
 function AuthPage() {
-  const status = useQuery({ queryKey: ["setup"], queryFn: () => getSetupStatus() });
+  const status = useQuery({ queryKey: ["setup"], queryFn: () => getSetupStatus(), retry: 1, staleTime: 30_000 });
   const [view, setView] = useState<View>("login");
   const needsSetup = status.data?.needsSetup;
 
@@ -54,7 +54,7 @@ function AuthPage() {
         <div className="relative hidden min-h-[620px] flex-col justify-between overflow-hidden border-l border-white/10 bg-gradient-to-br from-cyan-400/10 via-slate-900/30 to-blue-600/10 p-10 md:flex">
           <div className="absolute -left-20 top-24 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="relative flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-200 shadow-lg shadow-cyan-950/30"><Mail className="size-6" /></div>
+            <img src="/brand-mark.svg" alt="شعار بستطهالك" className="size-12 rounded-2xl shadow-lg shadow-cyan-950/30" />
             <div><p className="text-lg font-bold tracking-wide">بستطهالك</p><p className="text-xs text-slate-400">منظومة التواصل الداخلي</p></div>
           </div>
           <div className="relative space-y-6">
@@ -72,7 +72,7 @@ function AuthPage() {
 
         <div className="flex min-h-[620px] flex-col justify-center p-7 sm:p-10">
           <div className="mb-8 flex items-center gap-3 md:hidden">
-            <div className="grid size-11 place-items-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-200"><Mail className="size-5" /></div>
+            <img src="/brand-mark.svg" alt="شعار بستطهالك" className="size-11 rounded-2xl" />
             <div><p className="font-bold">بستطهالك</p><p className="text-xs text-slate-400">البريد الداخلي</p></div>
           </div>
           <div className="mb-8">
@@ -83,6 +83,12 @@ function AuthPage() {
           </div>
           {status.isLoading ? (
             <p className="py-8 text-center text-sm text-slate-400">جاري تجهيز مساحة العمل...</p>
+           ) : status.isError ? (
+            <div className="space-y-4 rounded-2xl border border-rose-300/20 bg-rose-300/[0.06] p-5 text-center">
+              <p className="font-semibold text-rose-100">تعذر الاتصال بخدمة تسجيل الدخول</p>
+              <p className="text-sm leading-6 text-slate-400">الخادم غير مكتمل الإعداد حاليًا. جرّب مرة أخرى بعد تهيئة إعدادات الاتصال.</p>
+              <Button type="button" onClick={() => status.refetch()} className="w-full bg-gradient-to-l from-cyan-500 to-blue-600 text-white">إعادة المحاولة</Button>
+            </div>
           ) : needsSetup ? (
             <SetupForm />
           ) : view === "login" ? (
