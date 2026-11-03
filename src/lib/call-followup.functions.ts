@@ -83,10 +83,10 @@ function normalizeDigits(value: string) {
 
 function extractPhoneNumbers(value: unknown): string[] {
   const text = normalizeDigits(String(value ?? ""));
-  const candidates = text.match(/(?:\\+|00)?[0-9][0-9\\s().-]{5,20}[0-9]/g) ?? [];
+  const candidates = text.match(/(?:\+|00)?[0-9][0-9\s().-]{5,20}[0-9]/g) ?? [];
   const found = new Set<string>();
   for (const candidate of candidates) {
-    let digits = candidate.replace(/\\D/g, "");
+    let digits = candidate.replace(/\D/g, "");
     if (digits.startsWith("0020")) digits = digits.slice(2);
     if (digits.length >= 7 && digits.length <= 15) found.add(digits);
   }
@@ -112,10 +112,10 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
       const rows = (XLSX.utils.sheet_to_json(wb.Sheets[name]!, { header: 1, defval: "", raw: false }) as unknown[][])
         .slice(0, 10000);
       const headers = (rows[0] ?? []).slice(0, 60).map((v) => String(v ?? ""));
-      const phoneHeader = headerIndex(headers, /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i);
+      const phoneHeaders = headers.map((value, index) => /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i.test(String(value ?? "")) ? index : -1).filter((index) => index >= 0);
       const estimated = rows.slice(1).reduce((sum, row) => {
-        const cells = phoneHeader >= 0 ? [row[phoneHeader]] : row;
-        return sum + cells.reduce((n, cell) => n + extractPhoneNumbers(cell).length, 0);
+        const columns = phoneHeaders.length ? phoneHeaders : row.map((_, index) => index);
+        return sum + columns.reduce((n, index) => n + extractPhoneNumbers(row[index]).length, 0);
       }, 0);
       return { name, headers, totalRows: Math.max(0, rows.length - 1), estimatedPhones: estimated };
     });
@@ -153,13 +153,13 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false }) as unknown[][];
       const headers = rows[0] ?? [];
       const detectedNameColumn = headerIndex(headers, /(name|full.?name|الاسم|اسم العميل|اسم الطالب)/i);
-      const detectedPhoneColumn = headerIndex(headers, /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i);
+      const detectedPhoneColumns = headers.map((value, index) => /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i.test(String(value ?? "")) ? index : -1).filter((index) => index >= 0);
       for (let rowIndex = 1; rowIndex < rows.length && rowIndex < 10000; rowIndex++) {
         const row = rows[rowIndex] ?? [];
         scannedRows++;
         const columns = data.phoneColumn >= 0
           ? [data.phoneColumn]
-          : detectedPhoneColumn >= 0 ? [detectedPhoneColumn] : row.map((_, index) => index);
+          : detectedPhoneColumns.length ? detectedPhoneColumns : row.map((_, index) => index);
         const nameColumn = data.nameColumn >= 0 ? data.nameColumn : data.nameColumn === -1 ? detectedNameColumn : -1;
         const name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim().slice(0, 180) : "";
         const seen = new Set<string>();
