@@ -83,13 +83,7 @@ function AuthPage() {
           </div>
           {status.isLoading ? (
             <p className="py-8 text-center text-sm text-slate-400">جاري تجهيز مساحة العمل...</p>
-           ) : status.isError ? (
-            <div className="space-y-4 rounded-2xl border border-rose-300/20 bg-rose-300/[0.06] p-5 text-center">
-              <p className="font-semibold text-rose-100">تعذر الاتصال بخدمة تسجيل الدخول</p>
-              <p className="text-sm leading-6 text-slate-400">الخادم غير مكتمل الإعداد حاليًا. جرّب مرة أخرى بعد تهيئة إعدادات الاتصال.</p>
-              <Button type="button" onClick={() => status.refetch()} className="w-full bg-gradient-to-l from-cyan-500 to-blue-600 text-white">إعادة المحاولة</Button>
-            </div>
-          ) : needsSetup ? (
+           ) : needsSetup ? (
             <SetupForm />
           ) : view === "login" ? (
             <LoginForm onForgot={() => setView("forgot")} />
