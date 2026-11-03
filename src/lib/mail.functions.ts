@@ -161,11 +161,14 @@ export const deleteAccount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireSupervisor(context as Ctx);
     if (data.userId === context.userId) throw new Error("لا يمكنك حذف حسابك");
-    const db = await admin();
-    const [name] = await namesOf([data.userId]);
-    const { error } = await db.auth.admin.deleteUser(data.userId);
-    if (!error) await logActivity({ actor_id: context.userId, action: "account_deleted", target_user_id: data.userId, details: { name } });
-    if (error) throw new Error(error.message);
+    const { data: result, error } = await context.supabase.functions.invoke("delete-account", {
+      body: { userId: data.userId },
+    });
+    if (error) {
+      const payload = (error as any).context;
+      throw new Error(payload?.error ?? error.message ?? "تعذر حذف الحساب");
+    }
+    if (!result?.ok) throw new Error(result?.error ?? "تعذر حذف الحساب");
     return { ok: true };
   });
 
