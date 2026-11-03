@@ -56,7 +56,7 @@ function CallFollowupPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["call-followup-workspace"] });
   const sync = useMutation({
     mutationFn: () => syncCallFollowupContacts({ data: {
-      messageId, phoneColumn: Number(phoneColumn), nameColumn: nameColumn === "60" ? -1 : Number(nameColumn),
+      messageId, phoneColumn: Number(phoneColumn), nameColumn: Number(nameColumn),
     }}),
     onSuccess: (r) => { toast.success(`تم استيراد ${r.count} رقم من ${r.sheetsScanned} شيت`); refresh(); },
     onError: (e) => toast.error((e as Error).message),
@@ -106,7 +106,7 @@ function CallFollowupPage() {
         {preview.data && (
           <div className="grid gap-3 rounded-xl bg-muted/40 p-3 md:grid-cols-3">
             <label className="space-y-1 text-sm"><span className="font-semibold">مصدر أرقام الهاتف</span><select value={phoneColumn} onChange={(e) => setPhoneColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي — كل الأعمدة</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
-            <label className="space-y-1 text-sm"><span className="font-semibold">عمود الاسم</span><select value={nameColumn} onChange={(e) => setNameColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي من عنوان العمود</option><option value="60">بدون اسم</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
+            <label className="space-y-1 text-sm"><span className="font-semibold">عمود الاسم</span><select value={nameColumn} onChange={(e) => setNameColumn(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2"><option value="-1">اكتشاف تلقائي من عنوان العمود</option><option value="-2">بدون اسم</option>{preview.data.headers.map((h: string, i: number) => <option key={i} value={i}>{h || `عمود ${i + 1}`}</option>)}</select></label>
             <div className="flex items-end"><button disabled={sync.isPending} onClick={() => sync.mutate()} className="h-10 w-full rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-50">{sync.isPending ? "جارٍ الاستيراد..." : `استيراد نحو ${preview.data.estimatedPhones} رقم`}</button></div>
             <p className="text-xs text-muted-foreground md:col-span-3">يتم فحص كل أوراق Excel تلقائيًا واستخراج كل أرقام الهاتف من الخلايا، مع إزالة التكرار داخل الصف. يمكنك تحديد عمود يدويًا عند الحاجة. الملف يُقرأ على الخادم.</p>
           </div>
