@@ -29,7 +29,7 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const ctx = context as Ctx;
-    const db = await admin();
+    const db: any = await admin();
     const [messages, statuses, profile] = await Promise.all([
       ctx.supabase.from("messages").select("id, subject, file_name, created_at, file_path")
         .not("file_path", "is", null).order("created_at", { ascending: false }).limit(100),
@@ -81,7 +81,7 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     const msg = await visibleMessage(ctx, data.messageId);
-    const db = await admin();
+    const db: any = await admin();
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
@@ -103,7 +103,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     const msg = await visibleMessage(ctx, data.messageId);
-    const db = await admin();
+    const db: any = await admin();
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
@@ -133,7 +133,7 @@ export const saveCallFollowupLog = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
-    const db = await admin();
+    const db: any = await admin();
     const { data: contact } = await db.from("call_followup_contacts").select("id, message_id").eq("id", data.contactId).maybeSingle();
     if (!contact) throw new Error("جهة الاتصال غير موجودة");
     await visibleMessage(ctx, contact.message_id);
@@ -152,7 +152,7 @@ export const saveCallFollowupStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     await requireStaff(ctx);
-    const db = await admin();
+    const db: any = await admin();
     const result = data.id
       ? await db.from("call_followup_statuses").update({ label: data.label, sort_order: data.sortOrder }).eq("id", data.id)
       : await db.from("call_followup_statuses").insert({ label: data.label, sort_order: data.sortOrder, created_by: ctx.userId });
@@ -165,7 +165,7 @@ export const deactivateCallFollowupStatus = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireStaff(context as Ctx);
-    const db = await admin();
+    const db: any = await admin();
     const { error } = await db.from("call_followup_statuses").update({ is_active: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
