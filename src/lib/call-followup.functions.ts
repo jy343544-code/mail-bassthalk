@@ -243,7 +243,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
         let name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim() : "";
         if (!name) {
           const nameCandidate = row.find((value, index) => {
-            if (candidateColumns.includes(index)) return false;
+            if (extractPhoneNumbers(value, true).length) return false;
             const text = String(value ?? "").trim();
             return text.length >= 2 && text.length <= 120 && /[\p{L}]/u.test(text) && !/^\d+$/u.test(text);
           });
