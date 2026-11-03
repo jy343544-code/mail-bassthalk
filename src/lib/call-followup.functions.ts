@@ -34,7 +34,7 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
       ctx.supabase.from("messages").select("id, subject, file_name, created_at, file_path")
         .not("file_path", "is", null).order("created_at", { ascending: false }).limit(100),
       db.from("call_followup_statuses").select("id, label, is_active, sort_order")
-        .eq("is_active", true).order("sort_order"),
+        .order("sort_order"),
       db.from("profiles").select("full_name").eq("id", ctx.userId).maybeSingle(),
     ]);
     if (messages.error) throw new Error(messages.error.message);
@@ -62,7 +62,7 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
     const statusById = new Map((statuses.data ?? []).map((s: any) => [s.id, s.label]));
     return {
       messages: (messages.data ?? []).map((m: any) => ({ id: m.id, subject: m.subject, fileName: m.file_name, createdAt: m.created_at })),
-      statuses: statuses.data ?? [],
+      statuses: (statuses.data ?? []).filter((status: any) => status.is_active),
       isStaff,
       profileName: profile?.full_name ?? "",
       contacts: contacts ?? [],
