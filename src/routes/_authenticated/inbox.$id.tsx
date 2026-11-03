@@ -337,7 +337,7 @@ function MessagePage() {
               </div>
 
               <a
-                href={`/sheet/${m.id}`}
+                href={m.sheet_url ? m.sheet_url.replace(/\/preview$/, "/edit") : `/sheet/${m.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group flex items-center gap-3 rounded-xl border bg-muted/40 p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"
@@ -351,7 +351,7 @@ function MessagePage() {
                     {m.file_name ?? "Google Sheet"}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    فتح المرفق · عرض فقط
+                    {m.sheet_url ? "فتح في جوجل شيت" : "فتح المرفق"}
                   </span>
                 </span>
 
