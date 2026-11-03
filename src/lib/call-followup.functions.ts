@@ -135,7 +135,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     messageId: z.string().uuid(),
     phoneColumn: z.number().int().min(-1).max(59).default(-1),
-    nameColumn: z.number().int().min(-1).max(59).default(-1),
+    nameColumn: z.number().int().min(-2).max(59).default(-1),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
@@ -160,7 +160,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
         const columns = data.phoneColumn >= 0
           ? [data.phoneColumn]
           : detectedPhoneColumn >= 0 ? [detectedPhoneColumn] : row.map((_, index) => index);
-        const nameColumn = data.nameColumn >= 0 ? data.nameColumn : detectedNameColumn;
+        const nameColumn = data.nameColumn >= 0 ? data.nameColumn : data.nameColumn === -1 ? detectedNameColumn : -1;
         const name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim().slice(0, 180) : "";
         const seen = new Set<string>();
         let phoneIndex = 0;
