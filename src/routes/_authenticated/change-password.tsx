@@ -10,7 +10,6 @@ import {
   LockKeyhole,
   CheckCircle2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { completePasswordChange } from "@/lib/mail.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,18 +103,6 @@ function ChangePassword() {
     setBusy(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: next,
-        current_password: current,
-      } as Parameters<typeof supabase.auth.updateUser>[0]);
-
-      if (error) {
-        toast.error(
-          error.message || "تعذر تغيير كلمة المرور. راجع كلمة المرور الحالية."
-        );
-        return;
-      }
-
       await completePasswordChange({ data: { currentPassword: current, newPassword: next } });
 
       toast.success("تم تغيير كلمة المرور بنجاح");
