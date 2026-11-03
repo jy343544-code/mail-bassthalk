@@ -154,6 +154,26 @@ export const deleteAccount = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Supervisor clears the activity log manually.
+// scope "logins": only login/logout/view entries; "all": everything. olderThanDays: 0 = all ages.
+export const clearActivityLog = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({ scope: z.enum(["logins", "all"]), olderThanDays: z.number().int().min(0).max(3650) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireSupervisor(context as Ctx);
+    const db = await admin();
+    let q = db.from("activity_log").delete({ count: "exact" });
+    if (data.scope === "logins") q = q.in("action", ["login", "logout", "view_message"]);
+    const cutoff = new Date(Date.now() - data.olderThanDays * 86400000).toISOString();
+    q = q.lt("created_at", cutoff);
+    const { error, count } = await q;
+    if (error) throw new Error(error.message);
+    await logActivity({ actor_id: context.userId, action: "log_cleared", details: { detail: `${count ?? 0} عملية` } });
+    return { deleted: count ?? 0 };
+  });
+
 export const markPasswordChanged = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

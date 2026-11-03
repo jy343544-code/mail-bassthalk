@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPeople } from "@/lib/queries";
+import { clearActivityLog } from "@/lib/mail.functions";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +59,7 @@ const actions: Record<
   supervisor_recovered: { label: "استرداد حساب السوبر فايزر", tone: "warn", icon: ShieldAlert },
   recovery_failed: { label: "محاولة استرداد فاشلة", tone: "danger", icon: ShieldAlert },
   screenshot_attempt: { label: "محاولة تصوير", tone: "danger", icon: ShieldAlert },
+  log_cleared: { label: "مسح السجل", tone: "warn", icon: Trash2 },
   devtools_attempt: { label: "أدوات المطور", tone: "danger", icon: ShieldAlert },
   print_attempt: { label: "محاولة طباعة", tone: "danger", icon: ShieldAlert },
   save_attempt: { label: "محاولة حفظ", tone: "danger", icon: ShieldAlert },
@@ -173,6 +176,18 @@ function ActivityPage() {
     (r) => actions[r.action]?.tone === "danger"
   ).length;
 
+  const clear = async (scope: "logins" | "all") => {
+    const msg = scope === "logins" ? "مسح كل تسجيلات الدخول والخروج وفتح الرسائل؟" : "مسح سجل العمليات بالكامل؟ لا يمكن التراجع.";
+    if (!window.confirm(msg)) return;
+    try {
+      const r = await clearActivityLog({ data: { scope, olderThanDays: 0 } });
+      toast.success(`تم مسح ${r.deleted} عملية`);
+      log.refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-3 md:p-6">
       {/* Header */}
@@ -189,17 +204,41 @@ function ActivityPage() {
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => log.refetch()}
-          disabled={log.isFetching}
-          className="gap-2"
-        >
-          <RefreshCw className={`size-4 ${log.isFetching ? "animate-spin" : ""}`} />
-          تحديث السجل
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => log.refetch()}
+            disabled={log.isFetching}
+            className="gap-2"
+          >
+            <RefreshCw className={`size-4 ${log.isFetching ? "animate-spin" : ""}`} />
+            تحديث السجل
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => clear("logins")}
+          >
+            <Trash2 className="size-4" />
+            مسح تسجيلات الدخول
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="gap-2"
+            onClick={() => clear("all")}
+          >
+            <Trash2 className="size-4" />
+            مسح السجل كله
+          </Button>
+        </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        يتم مسح تسجيلات الدخول والخروج وفتح الرسائل تلقائيًا بعد 7 أيام، وباقي العمليات بعد 90 يومًا.
+      </p>
+
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3">
