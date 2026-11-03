@@ -192,7 +192,11 @@ export const sendMessage = createServerFn({ method: "POST" })
       .object({
         subject: z.string().trim().min(1, "اكتب عنوان الرسالة").max(200),
         body: z.string().max(5000).default(""),
-        recipientIds: z.array(z.string().uuid()).min(1, "اختر مستلم واحد على الأقل"),
+        recipientIds: z.array(z.string().uuid()).min(1, "اختر مستلم واحد على الأقل").max(100, "الحد الأقصى 100 مستلم").superRefine((ids, ctx) => {
+          if (new Set(ids).size !== ids.length) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "يوجد مستلم مكرر" });
+          }
+        }),
         sheetUrl: z
           .string()
           .trim()
@@ -200,7 +204,10 @@ export const sendMessage = createServerFn({ method: "POST" })
           .optional()
           .or(z.literal("")),
         file: z
-          .object({ name: z.string().regex(allowedExt, "الملف لازم يكون Excel أو CSV"), base64: z.string() })
+          .object({
+            name: z.string().max(255).regex(allowedExt, "الملف لازم يكون Excel أو CSV"),
+            base64: z.string().min(1).max(14_000_000, "حجم الملف أكبر من الحد المسموح"),
+          })
           .optional(),
       })
       .parse(d),
@@ -210,43 +217,83 @@ export const sendMessage = createServerFn({ method: "POST" })
     if (!(await hasRole(c, "supervisor")) && !(await hasRole(c, "manager")) && !(await hasRole(c, "employee")))
       throw new Error("غير مسموح");
     if (!data.file && !data.sheetUrl) throw new Error("أرفق شيت إكسل أو رابط جوجل شيت");
+    if (data.file && data.sheetUrl) throw new Error("أرفق ملفًا واحدًا أو رابط Google Sheets، وليس الاثنين معًا");
+
     const db = await admin();
-    let filePath: string | null = null;
-    if (data.file) {
-      const bin = Uint8Array.from(atob(data.file.base64), (c) => c.charCodeAt(0));
-      const ext = data.file.name.split(".").pop()!.toLowerCase();
-      filePath = `${crypto.randomUUID()}.${ext}`;
-      const up = await db.storage.from("sheets").upload(filePath, bin, {
-        contentType: "application/octet-stream",
-      });
-      if (up.error) throw new Error(up.error.message);
-    }
-    const sheetId = data.sheetUrl?.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1];
-    const { data: msg, error } = await db
-      .from("messages")
-      .insert({
-        sender_id: context.userId,
-        subject: data.subject,
-        body: data.body,
-        file_path: filePath,
-        file_name: data.file?.name ?? null,
-        sheet_url: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : null,
-      })
+    const recipientIds = [...new Set(data.recipientIds)];
+    const { data: existingRecipients, error: recipientLookupError } = await db
+      .from("profiles")
       .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    const rec = await db
-      .from("message_recipients")
-      .insert(data.recipientIds.map((r) => ({ message_id: msg.id, recipient_id: r })));
-    if (rec.error) throw new Error(rec.error.message);
-    const recipients = await namesOf(data.recipientIds);
-    await logActivity({
-      actor_id: context.userId,
-      action: "message_sent",
-      message_id: msg.id,
-      details: { subject: data.subject, recipients, file: data.file?.name ?? (sheetId ? "Google Sheet" : null) },
-    });
-    return { id: msg.id };
+      .in("id", recipientIds);
+    if (recipientLookupError) throw new Error("تعذر التحقق من المستلمين");
+    if ((existingRecipients ?? []).length !== recipientIds.length)
+      throw new Error("يوجد مستلم غير موجود أو حسابه غير صالح");
+
+    let filePath: string | null = null;
+    let messageId: string | null = null;
+
+    try {
+      if (data.file) {
+        let bin: Uint8Array;
+        try {
+          bin = Uint8Array.from(atob(data.file.base64), (char) => char.charCodeAt(0));
+        } catch {
+          throw new Error("تعذر قراءة الملف المرفق");
+        }
+        const maxFileBytes = 10 * 1024 * 1024;
+        if (bin.byteLength === 0 || bin.byteLength > maxFileBytes)
+          throw new Error("الحد الأقصى لحجم الملف 10 ميجابايت");
+
+        const ext = data.file.name.split(".").pop()!.toLowerCase();
+        const contentTypes: Record<string, string> = {
+          xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          xls: "application/vnd.ms-excel",
+          csv: "text/csv",
+          ods: "application/vnd.oasis.opendocument.spreadsheet",
+        };
+        filePath = `${crypto.randomUUID()}.${ext}`;
+        const up = await db.storage.from("sheets").upload(filePath, bin, {
+          contentType: contentTypes[ext] ?? "application/octet-stream",
+          upsert: false,
+        });
+        if (up.error) throw new Error("تعذر رفع الملف المرفق");
+      }
+
+      const sheetId = data.sheetUrl?.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1];
+      const { data: msg, error } = await db
+        .from("messages")
+        .insert({
+          sender_id: context.userId,
+          subject: data.subject,
+          body: data.body,
+          file_path: filePath,
+          file_name: data.file?.name ?? null,
+          sheet_url: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : null,
+        })
+        .select("id")
+        .single();
+      if (error || !msg) throw new Error("تعذر إنشاء الرسالة");
+      messageId = msg.id;
+
+      const rec = await db
+        .from("message_recipients")
+        .insert(recipientIds.map((recipientId) => ({ message_id: msg.id, recipient_id: recipientId })));
+      if (rec.error) throw new Error("تعذر حفظ مستلمي الرسالة");
+
+      const recipients = await namesOf(recipientIds);
+      await logActivity({
+        actor_id: context.userId,
+        action: "message_sent",
+        message_id: msg.id,
+        details: { subject: data.subject, recipients, file: data.file?.name ?? (sheetId ? "Google Sheet" : null) },
+      });
+      return { id: msg.id };
+    } catch (error) {
+      // Best-effort cleanup prevents orphaned messages/files after a partial send.
+      if (messageId) await db.from("messages").delete().eq("id", messageId);
+      if (filePath) await db.storage.from("sheets").remove([filePath]);
+      throw error;
+    }
   });
 
 export const deleteMessage = createServerFn({ method: "POST" })
