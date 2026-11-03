@@ -29,6 +29,7 @@ import { roleLabel } from "@/lib/identity";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
+import { DailyAyah } from "@/components/DailyAyah";
 
 import {
   DropdownMenu,
@@ -119,11 +120,17 @@ function Layout() {
   return (
     <div
       dir="rtl"
-      className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground"
+      className="relative isolate flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground"
     >
+      <div className="app-live-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <span className="app-glow app-glow-one" />
+        <span className="app-glow app-glow-two" />
+        <span className="app-glow app-glow-three" />
+      </div>
+
       {/* TOP HEADER */}
 
-      <header className="z-20 flex h-16 shrink-0 items-center gap-3 border-b bg-topbar px-3 text-topbar-foreground shadow-sm sm:px-5">
+      <header className="relative z-20 flex h-16 shrink-0 items-center gap-3 border-b bg-topbar px-3 text-topbar-foreground shadow-sm sm:px-5">
 
         {/* BRAND */}
 
@@ -237,7 +244,7 @@ function Layout() {
 
         {!me.mustChange && (
 
-          <aside className="z-10 flex shrink-0 flex-col border-b bg-sidebar text-sidebar-foreground md:w-64 md:border-b-0 md:border-l">
+          <aside className="relative z-10 flex shrink-0 flex-col border-b bg-sidebar/90 text-sidebar-foreground backdrop-blur-xl md:w-64 md:border-b-0 md:border-l">
 
             {/* SIDEBAR HEADER */}
 
@@ -437,8 +444,8 @@ function Layout() {
 
         {/* PAGE CONTENT */}
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-auto bg-background">
-
+        <main className="relative z-10 min-h-0 min-w-0 flex-1 overflow-auto bg-background/75 backdrop-blur-[3px]">
+          {!me.mustChange && <DailyAyah />}
           <div className="min-h-full">
             <Outlet />
           </div>
