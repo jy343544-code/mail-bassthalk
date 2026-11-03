@@ -40,16 +40,29 @@ export const getCallFollowupWorkspace = createServerFn({ method: "GET" })
     if (messages.error) throw new Error(messages.error.message);
     if (statuses.error) throw new Error(statuses.error.message);
     const isStaff = await hasRole(ctx, "supervisor") || await hasRole(ctx, "manager");
-    const { data: logs, error: logError } = await db.from("call_followup_logs")
-      .select("id, contact_id, status_id, employee_id, note, created_at")
-      .order("created_at", { ascending: false }).limit(500);
-    if (logError) throw new Error(logError.message);
     const allowedIds = new Set((messages.data ?? []).map((m: any) => m.id));
-    const { data: contacts, error: contactError } = await db.from("call_followup_contacts")
-      .select("id, message_id, source_sheet, source_row, phone_index, full_name, phone")
-      .in("message_id", [...allowedIds].length ? [...allowedIds] : ["00000000-0000-0000-0000-000000000000"]);
-    if (contactError) throw new Error(contactError.message);
-    const contactById = new Map((contacts ?? []).map((c: any) => [c.id, c]));
+    const messageIds = [...allowedIds];
+    const contacts: any[] = [];
+    for (let offset = 0; offset < messageIds.length; offset += 500) {
+      const batchIds = messageIds.slice(offset, offset + 500);
+      const { data: batch, error: contactError } = await db.from("call_followup_contacts")
+        .select("id, message_id, source_sheet, source_row, phone_index, full_name, phone")
+        .in("message_id", batchIds).order("source_row", { ascending: true }).order("phone_index", { ascending: true });
+      if (contactError) throw new Error(contactError.message);
+      contacts.push(...(batch ?? []));
+    }
+    const contactById = new Map(contacts.map((c: any) => [c.id, c]));
+    const logs: any[] = [];
+    for (let offset = 0; offset < contacts.length; offset += 500) {
+      const contactIds = contacts.slice(offset, offset + 500).map((c: any) => c.id);
+      if (!contactIds.length) continue;
+      const { data: batch, error: logError } = await db.from("call_followup_logs")
+        .select("id, contact_id, status_id, employee_id, note, created_at")
+        .in("contact_id", contactIds).order("created_at", { ascending: false });
+      if (logError) throw new Error(logError.message);
+      logs.push(...(batch ?? []));
+    }
+    logs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const visibleLogs = (logs ?? []).filter((l: any) => {
       const c = contactById.get(l.contact_id) as any;
       return c && (isStaff || l.employee_id === ctx.userId);
