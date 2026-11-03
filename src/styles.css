@@ -332,3 +332,37 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
   }
     }
+
+
+/* =========================
+   LIVE AMBIENT BACKGROUND
+========================= */
+.app-live-backdrop {
+  background:
+    radial-gradient(ellipse at 12% 18%, color-mix(in oklab, var(--primary) 13%, transparent), transparent 42%),
+    radial-gradient(ellipse at 88% 82%, color-mix(in oklab, #14b8a6 12%, transparent), transparent 40%);
+}
+.app-glow {
+  position: absolute;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 9999px;
+  filter: blur(75px);
+  opacity: .22;
+  will-change: transform;
+  animation: ambient-drift 24s ease-in-out infinite alternate;
+}
+.app-glow-one { top: -9rem; right: -7rem; background: #6557d9; }
+.app-glow-two { bottom: -12rem; left: 8%; background: #0d9488; animation-delay: -8s; }
+.app-glow-three { top: 38%; left: 42%; width: 16rem; height: 16rem; background: #3b82f6; opacity: .12; animation-delay: -15s; }
+.daily-ayah-card {
+  background: linear-gradient(115deg, color-mix(in oklab, var(--card) 94%, var(--primary) 6%), color-mix(in oklab, var(--card) 95%, #14b8a6 5%));
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--border));
+}
+@keyframes ambient-drift {
+  from { transform: translate3d(-12px, -8px, 0) scale(.96); }
+  to { transform: translate3d(24px, 18px, 0) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-glow { animation: none; }
+}
