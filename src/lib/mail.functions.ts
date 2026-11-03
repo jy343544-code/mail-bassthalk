@@ -8,7 +8,7 @@ const usernameSchema = z
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9._-]{3,30}$/, "اسم المستخدم: حروف إنجليزية وأرقام فقط (3-30)");
-const passwordSchema = z.string().min(12, "كلمة المرور 12 حرفًا على الأقل").max(72);
+const passwordSchema = z.string().min(1, "اكتب كلمة المرور").max(72, "الحد الأقصى 72 حرفًا");
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const MAX_RECIPIENTS = 100;
 
