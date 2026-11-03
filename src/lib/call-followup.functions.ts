@@ -81,20 +81,58 @@ function normalizeDigits(value: string) {
     .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 }
 
-function extractPhoneNumbers(value: unknown): string[] {
+const PHONE_HEADER = /(phone|mobile|telephone|tel|whatsapp|wa|موبايل|محمول|تليفون|هاتف|رقم\s*(الهاتف|الموبايل|المحمول|التليفون|الواتساب))/i;
+const NAME_HEADER = /(full.?name|customer.?name|student.?name|client.?name|name|الاسم|اسم\s*(العميل|الطالب|الموظف|الشخص))/i;
+
+function extractPhoneNumbers(value: unknown, allowGeneric = false): string[] {
   const text = normalizeDigits(String(value ?? ""));
-  const candidates = text.match(/(?:\+|00)?[0-9][0-9\s().-]{5,20}[0-9]/g) ?? [];
   const found = new Set<string>();
-  for (const candidate of candidates) {
-    let digits = candidate.replace(/\D/g, "");
+  // Egyptian mobile numbers are extracted independently, even if several occur in one cell.
+  const egyptian = /(?:\+?20|0020)?[\s().-]*0?1[\s().-]*[0125](?:[\s().-]*\d){8}/g;
+  for (const match of text.matchAll(egyptian)) {
+    let digits = match[0].replace(/\D/g, "");
     if (digits.startsWith("0020")) digits = digits.slice(2);
-    if (digits.length >= 7 && digits.length <= 15) found.add(digits);
+    else if (digits.startsWith("20") && digits.length === 12) digits = "0" + digits.slice(2);
+    if (digits.length === 10 && digits.startsWith("1")) digits = "0" + digits;
+    if (/^01[0125]\d{8}$/.test(digits)) found.add(digits);
+  }
+  if (allowGeneric) {
+    // Generic landline/international numbers are accepted only in a column explicitly labelled as phone.
+    const chunks = text.split(/[;,،\n\r|/]+/);
+    for (const chunk of chunks) {
+      const candidates = chunk.match(/(?:\+|00)?\d[\d\s().-]{5,20}\d/g) ?? [];
+      for (const candidate of candidates) {
+        let digits = candidate.replace(/\D/g, "");
+        if (digits.startsWith("00")) digits = digits.slice(2);
+        if (digits.length >= 7 && digits.length <= 15 && !found.has(digits)) found.add(digits);
+      }
+    }
   }
   return [...found];
 }
 
-function headerIndex(headers: unknown[], pattern: RegExp): number {
-  return headers.findIndex((value) => pattern.test(normalizeDigits(String(value ?? "")).toLowerCase()));
+function detectHeaderRow(rows: unknown[][]): number {
+  let bestIndex = 0;
+  let bestScore = 0;
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const cells = (rows[i] ?? []).slice(0, 80).map((v) => normalizeDigits(String(v ?? "")).trim());
+    const phoneCount = cells.filter((v) => PHONE_HEADER.test(v)).length;
+    const nameCount = cells.filter((v) => NAME_HEADER.test(v)).length;
+    const score = phoneCount * 3 + nameCount * 2;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}
+
+function detectNameColumn(headers: unknown[]): number {
+  return headers.findIndex((value) => NAME_HEADER.test(normalizeDigits(String(value ?? "")).trim()));
+}
+
+function detectPhoneColumns(headers: unknown[]): number[] {
+  return headers.map((value, index) => PHONE_HEADER.test(normalizeDigits(String(value ?? "")).trim()) ? index : -1).filter((index) => index >= 0);
 }
 
 export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
@@ -107,17 +145,22 @@ export const getCallFollowupSheetPreview = createServerFn({ method: "POST" })
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
-    const wb = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: "array" });
+    const wb = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: "array", cellDates: false });
     const sheets = wb.SheetNames.map((name) => {
-      const rows = (XLSX.utils.sheet_to_json(wb.Sheets[name]!, { header: 1, defval: "", raw: false }) as unknown[][])
-        .slice(0, 10000);
-      const headers = (rows[0] ?? []).slice(0, 60).map((v) => String(v ?? ""));
-      const phoneHeaders = headers.map((value, index) => /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i.test(String(value ?? "")) ? index : -1).filter((index) => index >= 0);
-      const estimated = rows.slice(1).reduce((sum, row) => {
-        const columns = phoneHeaders.length ? phoneHeaders : row.map((_, index) => index);
-        return sum + columns.reduce((n, index) => n + extractPhoneNumbers(row[index]).length, 0);
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name]!, { header: 1, defval: "", raw: false }) as unknown[][];
+      const headerRow = detectHeaderRow(rows);
+      const headers = (rows[headerRow] ?? []).slice(0, 80).map((v) => String(v ?? ""));
+      const phoneColumns = detectPhoneColumns(headers);
+      const nameColumn = detectNameColumn(headers);
+      const estimatedPhones = rows.slice(headerRow + 1, 10001).reduce((sum, row) => {
+        const columns = phoneColumns.length ? phoneColumns : row.map((_, index) => index);
+        return sum + columns.reduce((n, index) => n + extractPhoneNumbers(row[index], phoneColumns.includes(index)).length, 0);
       }, 0);
-      return { name, headers, totalRows: Math.max(0, rows.length - 1), estimatedPhones: estimated };
+      return {
+        name, headers, headerRow, nameColumn, phoneColumns,
+        totalRows: Math.max(0, Math.min(rows.length - headerRow - 1, 10000)),
+        estimatedPhones,
+      };
     });
     if (!sheets.length) throw new Error("ملف الشيت فارغ");
     return {
@@ -134,8 +177,8 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     messageId: z.string().uuid(),
-    phoneColumn: z.number().int().min(-1).max(59).default(-1),
-    nameColumn: z.number().int().min(-2).max(59).default(-1),
+    phoneColumn: z.number().int().min(-1).max(79).default(-1),
+    nameColumn: z.number().int().min(-2).max(79).default(-1),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
@@ -144,28 +187,41 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
     const { data: blob, error } = await db.storage.from("sheets").download(msg.file_path);
     if (error || !blob) throw new Error("تعذر قراءة ملف الشيت");
     const XLSX = await import("xlsx");
-    const wb = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: "array" });
+    const wb = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: "array", cellDates: false });
     const records: Array<Record<string, unknown>> = [];
     let scannedRows = 0;
+    const perSheet: Array<{ sheet: string; rows: number; phones: number }> = [];
     for (const sheetName of wb.SheetNames) {
       const sheet = wb.Sheets[sheetName];
       if (!sheet) continue;
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false }) as unknown[][];
-      const headers = rows[0] ?? [];
-      const detectedNameColumn = headerIndex(headers, /(name|full.?name|الاسم|اسم العميل|اسم الطالب)/i);
-      const detectedPhoneColumns = headers.map((value, index) => /(phone|mobile|telephone|tel|موبايل|محمول|تليفون|هاتف|رقم)/i.test(String(value ?? "")) ? index : -1).filter((index) => index >= 0);
-      for (let rowIndex = 1; rowIndex < rows.length && rowIndex < 10000; rowIndex++) {
+      const headerRow = detectHeaderRow(rows);
+      const headers = rows[headerRow] ?? [];
+      const detectedNameColumn = detectNameColumn(headers);
+      const detectedPhoneColumns = detectPhoneColumns(headers);
+      let sheetPhones = 0;
+      for (let rowIndex = headerRow + 1; rowIndex < rows.length && rowIndex <= headerRow + 10000; rowIndex++) {
         const row = rows[rowIndex] ?? [];
         scannedRows++;
-        const columns = data.phoneColumn >= 0
-          ? [data.phoneColumn]
-          : detectedPhoneColumns.length ? detectedPhoneColumns : row.map((_, index) => index);
-        const nameColumn = data.nameColumn >= 0 ? data.nameColumn : data.nameColumn === -1 ? detectedNameColumn : -1;
-        const name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim().slice(0, 180) : "";
+        const selectedColumns = data.phoneColumn >= 0 ? [data.phoneColumn] : [];
+        const columns = [...new Set([...detectedPhoneColumns, ...selectedColumns])];
+        const scanAllColumns = columns.length === 0;
+        const candidateColumns = scanAllColumns ? row.map((_, index) => index) : columns;
+        let nameColumn = data.nameColumn >= 0 ? data.nameColumn : detectedNameColumn;
+        let name = nameColumn >= 0 ? String(row[nameColumn] ?? "").trim() : "";
+        if (!name) {
+          const nameCandidate = row.find((value, index) => {
+            if (candidateColumns.includes(index)) return false;
+            const text = String(value ?? "").trim();
+            return text.length >= 2 && text.length <= 120 && /[\p{L}]/u.test(text) && !/^\d+$/u.test(text);
+          });
+          if (nameCandidate !== undefined) name = String(nameCandidate).trim();
+        }
         const seen = new Set<string>();
         let phoneIndex = 0;
-        for (const column of columns) {
-          for (const phone of extractPhoneNumbers(row[column])) {
+        for (const column of candidateColumns) {
+          const explicitPhoneColumn = detectedPhoneColumns.includes(column) || column === data.phoneColumn;
+          for (const phone of extractPhoneNumbers(row[column], explicitPhoneColumn)) {
             if (seen.has(phone)) continue;
             seen.add(phone);
             phoneIndex++;
@@ -174,14 +230,16 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
               source_sheet: sheetName.slice(0, 120),
               source_row: rowIndex + 1,
               phone_index: phoneIndex,
-              full_name: name,
+              full_name: name.slice(0, 180),
               phone,
             });
+            sheetPhones++;
           }
         }
       }
+      perSheet.push({ sheet: sheetName, rows: Math.max(0, Math.min(rows.length - headerRow - 1, 10000)), phones: sheetPhones });
     }
-    if (!records.length) throw new Error("لم يتم العثور على أرقام هاتف. راجع تنسيق الشيت أو اختر عمود الهاتف يدويًا.");
+    if (!records.length) throw new Error("لم يتم العثور على أرقام هاتف محمول مصرية. تأكد من وجود أرقام تبدأ بـ 01 أو حدد أعمدة الهاتف.");
     const chunkSize = 500;
     for (let i = 0; i < records.length; i += chunkSize) {
       const { error: upsertError } = await db.from("call_followup_contacts")
@@ -193,6 +251,7 @@ export const syncCallFollowupContacts = createServerFn({ method: "POST" })
       rowsScanned: scannedRows,
       sheetsScanned: wb.SheetNames.length,
       uniquePhones: new Set(records.map((record) => record.phone)).size,
+      perSheet,
     };
   });
 
