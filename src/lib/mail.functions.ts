@@ -209,7 +209,10 @@ export const sendMessage = createServerFn({ method: "POST" })
           .optional()
           .or(z.literal("")),
         file: z
-          .object({ name: z.string().regex(allowedExt, "الملف لازم يكون Excel أو CSV"), base64: z.string() })
+          .object({
+            name: z.string().trim().min(1).max(180).regex(allowedExt, "الملف لازم يكون Excel أو CSV"),
+            base64: z.string().min(1).max(Math.ceil(MAX_ATTACHMENT_BYTES / 3) * 4 + 4),
+          })
           .optional(),
       })
       .parse(d),
