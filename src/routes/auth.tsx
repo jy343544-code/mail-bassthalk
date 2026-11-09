@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, LockKeyhole } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { requestPasswordReset } from "@/lib/mail.functions";
+import { getSetupStatus, requestPasswordReset, setupSupervisor } from "@/lib/mail.functions";
 import { usernameToEmail } from "@/lib/identity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,19 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-type View = "login" | "forgot";
+type View = "login" | "forgot" | "setup";
 
 function AuthPage() {
   const [view, setView] = useState<View>("login");
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getSetupStatus()
+      .then(({ needsSetup }) => { if (active) setNeedsSetup(needsSetup); })
+      .catch(() => { if (active) setNeedsSetup(false); });
+    return () => { active = false; };
+  }, []);
 
   return (
     <main dir="rtl" className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#09090d] px-4 py-10 text-white">
@@ -75,13 +84,20 @@ function AuthPage() {
           <div className="mb-8">
             <div className="mb-4 inline-flex size-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/10 text-violet-200"><LockKeyhole className="size-5" /></div>
             <p className="mb-2 text-xs font-semibold tracking-[.18em] text-violet-300">WORKSPACE ACCESS</p>
-            <h1 className="text-3xl font-bold tracking-tight">{view === "login" ? "أهلاً بعودتك" : "استعادة كلمة المرور"}</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-400">{view === "login" ? "سجّل دخولك للمتابعة إلى مساحة العمل." : "اكتب اسم المستخدم لإرسال طلب استعادة كلمة المرور."}</p>
+            <h1 className="text-3xl font-bold tracking-tight">{view === "login" ? "أهلاً بعودتك" : view === "forgot" ? "استعادة كلمة المرور" : "إعداد أول مدير"}</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-400">{view === "login" ? "سجّل دخولك للمتابعة إلى مساحة العمل." : view === "forgot" ? "اكتب اسم المستخدم لإرسال طلب استعادة كلمة المرور." : "إنشاء حساب المشرف الأول بصورة آمنة."}</p>
           </div>
           {view === "login" ? (
             <LoginForm onForgot={() => setView("forgot")} />
-          ) : (
+          ) : view === "forgot" ? (
             <ForgotForm onBack={() => setView("login")} />
+          ) : (
+            <SetupForm onBack={() => setView("login")} onDone={() => setView("login")} />
+          )}
+          {needsSetup && view === "login" && (
+            <button type="button" onClick={() => setView("setup")} className="mt-5 w-full text-center text-xs text-cyan-300 transition hover:text-violet-200 hover:underline">
+              إعداد أول حساب مدير
+            </button>
           )}
           <p className="mt-8 flex items-center justify-center gap-2 border-t border-white/10 pt-5 text-xs text-slate-500">
             <ShieldCheck className="size-4 text-violet-300" /> يتم تسجيل عمليات الدخول لحماية مساحة العمل
@@ -119,6 +135,52 @@ function LoginForm({ onForgot }: { onForgot: () => void }) {
         <Input id="pw" type="password" dir="ltr" autoComplete="current-password" placeholder="••••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white placeholder:text-slate-600 focus-visible:ring-cyan-400" />
       </div>
       <Button type="submit" className="h-12 w-full bg-gradient-to-l from-[#5145cd] to-[#8652d8] text-base font-semibold text-white shadow-lg shadow-violet-950/30 transition hover:brightness-110" disabled={busy}>{busy ? "جاري تسجيل الدخول..." : "دخول إلى مساحة العمل"}</Button>
+    </form>
+  );
+}
+
+
+function SetupForm({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+  const [fullName, setFullName] = useState("Hussein");
+  const [username, setUsername] = useState("hassin");
+  const [password, setPassword] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <form className="space-y-4" onSubmit={async (e) => {
+      e.preventDefault();
+      setBusy(true);
+      try {
+        await setupSupervisor({ data: { fullName, username, password, setupToken } });
+        toast.success("تم إنشاء حساب المشرف. سجّل الدخول بكلمة المرور المؤقتة ثم غيّرها فورًا.");
+        onDone();
+      } catch (err) {
+        toast.error((err as Error).message || "تعذر إنشاء الحساب");
+      } finally {
+        setBusy(false);
+      }
+    }}>
+      <button type="button" onClick={onBack} className="text-sm text-cyan-300 hover:underline">رجوع لتسجيل الدخول</button>
+      <div className="space-y-2">
+        <Label className="text-slate-200">الاسم</Label>
+        <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white" />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-200">اسم المستخدم</Label>
+        <Input dir="ltr" value={username} onChange={(e) => setUsername(e.target.value)} required className="h-12 border-white/10 bg-white/[0.045] text-white" />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-200">كلمة المرور المؤقتة</Label>
+        <Input dir="ltr" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={12} maxLength={72} required className="h-12 border-white/10 bg-white/[0.045] text-white" />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-slate-200">رمز التهيئة لمرة واحدة</Label>
+        <Input dir="ltr" type="password" autoComplete="off" value={setupToken} onChange={(e) => setSetupToken(e.target.value)} minLength={32} required className="h-12 border-white/10 bg-white/[0.045] text-white" />
+      </div>
+      <Button type="submit" className="h-12 w-full bg-gradient-to-l from-[#5145cd] to-[#8652d8] text-white" disabled={busy}>
+        {busy ? "جاري إنشاء حساب المشرف..." : "إنشاء حساب المشرف الأول"}
+      </Button>
     </form>
   );
 }
