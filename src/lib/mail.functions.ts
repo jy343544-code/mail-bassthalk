@@ -99,18 +99,37 @@ export const getSetupStatus = createServerFn({ method: "GET" }).handler(async ()
 export const setupSupervisor = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
-      .object({ fullName: z.string().trim().min(2), username: usernameSchema, password: passwordSchema })
+      .object({
+        fullName: z.string().trim().min(2).max(100),
+        username: usernameSchema,
+        password: passwordSchema,
+        setupToken: z.string().min(32).max(200),
+      })
       .parse(d),
   )
   .handler(async ({ data }) => {
+    // One-time bootstrap is limited to the intended Preview branch by a server-only secret.
+    const expectedToken = process.env["INITIAL_SUPERVISOR_SETUP_TOKEN"];
+    if (!expectedToken || data.setupToken !== expectedToken) {
+      throw new Error("رمز التهيئة غير صحيح أو انتهت صلاحيته");
+    }
+
     const db = await admin();
-    const { count } = await db
+    const { count, error } = await db
       .from("user_roles")
       .select("id", { count: "exact", head: true })
       .eq("role", "supervisor");
+    if (error) throw new Error("تعذر التحقق من حالة إعداد المدير");
     if ((count ?? 0) > 0) throw new Error("تم إعداد السوبر فايزر بالفعل");
-    const id = await createUserWithRole({ ...data, role: "supervisor", mustChange: false });
-    await logActivity({ actor_id: id, action: "account_created", target_user_id: id, details: { name: data.fullName, role: "supervisor" } });
+
+    const id = await createUserWithRole({
+      fullName: data.fullName,
+      username: data.username,
+      password: data.password,
+      role: "supervisor",
+      mustChange: true,
+    });
+    await logActivity({ actor_id: id, action: "account_created", target_user_id: id, details: { name: data.fullName, role: "supervisor", bootstrap: true } });
     return { ok: true };
   });
 
